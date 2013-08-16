@@ -13,7 +13,7 @@ setup(
     packages=find_packages(),
     author = 'Inktank',
     author_email = 'ceph-devel@vger.kernel.org',
-    version = '0.67',  #XXX Fix version
+    version = '0.67',
     license = "LGPL2",
     zip_safe = False,
     keywords = "ceph, cephfs, bindings, api, cli",
