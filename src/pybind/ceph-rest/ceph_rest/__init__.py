@@ -11,7 +11,7 @@ import xml.etree.ElementTree
 import xml.sax.saxutils
 
 import flask
-from ceph_argparse import \
+from ceph_rest.argparse import \
     ArgumentError, CephPgid, CephOsdName, CephChoices, CephPrefix, \
     concise_sig, descsort, parse_funcsig, parse_json_funcsigs, \
     validate, json_command
@@ -361,7 +361,7 @@ def handler(catchall_path=None, fmt=None, target=None):
     Main endpoint handler; generic for every endpoint, including catchall.
     Handles the catchall, anything with <.fmt>, anything with embedded
     <target>.  Partial match or ?help cause the HTML-table
-    "show_human_help" output.  
+    "show_human_help" output.
     '''
 
     ep = catchall_path or flask.request.endpoint
