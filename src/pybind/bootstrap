@@ -53,8 +53,8 @@ else
 fi
 
 test -d virtualenv || virtualenv virtualenv
-cd ceph-argparse && ./virtualenv/bin/python setup.py develop && cd -
-cd ceph-rest && ./virtualenv/bin/python setup.py develop && cd -
-cd cephfs && ./virtualenv/bin/python setup.py develop && cd -
-cd rados && ./virtualenv/bin/python setup.py develop && cd -
-cd rbd && ./virtualenv/bin/python setup.py develop && cd -
+cd cephfs && ../virtualenv/bin/python setup.py develop && cd -
+cd rados && ../virtualenv/bin/python setup.py develop && cd -
+cd rbd && ../virtualenv/bin/python setup.py develop && cd -
+cd ceph-argparse && ../virtualenv/bin/python setup.py develop && cd -
+cd ceph-rest && ../virtualenv/bin/python setup.py develop && cd -
