@@ -398,7 +398,6 @@ coverity-submit:
 
 # Install Python bindings into a virtualenv
 install-pybind:
-	# bootstrap requires us to be in the same directory
 	@cd pybind && ./bootstrap
 
 uninstall-pybind:
