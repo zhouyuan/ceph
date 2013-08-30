@@ -21,7 +21,6 @@ Requires:	librados2 = %{version}-%{release}
 Requires:	libcephfs1 = %{version}-%{release}
 Requires:	python
 Requires:	python-argparse
-Requires:	python-ceph
 Requires:       xfsprogs
 Requires:	cryptsetup
 Requires:	parted
@@ -185,22 +184,6 @@ performance, reliability, and scalability. This is a shared library
 allowing applications to access a Ceph distributed file system via a
 POSIX-like interface.
 
-%package -n python-ceph
-Summary:	Python libraries for the Ceph distributed filesystem
-Group:		System Environment/Libraries
-License:	LGPL-2.0
-Requires:	librados2 = %{version}-%{release}
-Requires:	librbd1 = %{version}-%{release}
-Requires:	libcephfs1 = %{version}-%{release}
-Requires:	python-flask
-Requires:	python-requests
-%if 0%{defined suse_version}
-%py_requires
-%endif
-%description -n python-ceph
-This package contains Python libraries for interacting with Cephs RADOS
-object storage.
-
 %package -n rest-bench
 Summary:	RESTful benchmark
 Group:		System Environment/Libraries
@@ -341,7 +324,7 @@ mkdir -p $RPM_BUILD_ROOT%{_localstatedir}/lib/ceph/bootstrap-mds
 # Fedora seems to have some problems with this macro, use it only on SUSE
 %fdupes -s $RPM_BUILD_ROOT/%{python_sitelib}
 %fdupes %buildroot
-%endif 
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -371,7 +354,7 @@ fi
 %endif
 # Package removal cleanup
 if [ "$1" -eq "0" ] ; then
-    rm -rf /var/log/ceph 
+    rm -rf /var/log/ceph
     rm -rf /etc/ceph
 fi
 
@@ -583,15 +566,6 @@ fi
 
 %postun -n libcephfs1
 /sbin/ldconfig
-
-#################################################################################
-%files -n python-ceph
-%defattr(-,root,root,-)
-%{python_sitelib}/rados.py*
-%{python_sitelib}/rbd.py*
-%{python_sitelib}/cephfs.py*
-%{python_sitelib}/ceph_argparse.py*
-%{python_sitelib}/ceph_rest_api.py*
 
 #################################################################################
 %files -n rest-bench
