@@ -75,7 +75,7 @@ ceph_syn_SOURCES += client/SyntheticClient.cc # uses g_conf.. needs cleanup
 ceph_syn_LDADD = $(LIBCLIENT) $(CEPH_GLOBAL)
 bin_PROGRAMS += ceph-syn
 
-rbd_SOURCES = rbd.cc 
+rbd_SOURCES = rbd.cc
 rbd_LDADD = $(LIBRBD) $(LIBRADOS) $(CEPH_GLOBAL)
 if LINUX
 bin_PROGRAMS += rbd
@@ -395,3 +395,11 @@ project.tgz: clean
 coverity-submit:
 	scp project.tgz ceph.com:/home/ceph_site/ceph.com/coverity/`git describe`.tgz
 	curl --data "project=ceph&password=`cat ~/coverity.build.pass.txt`&email=sage@newdream.net&url=http://ceph.com/coverity/`git describe`.tgz" http://scan5.coverity.com/cgi-bin/submit_build.py
+
+# Install Python bindings into a virtualenv
+install-pybind:
+	# bootstrap requires us to be in the same directory
+	@cd pybind && ./bootstrap
+
+uninstall-pybind:
+	rm -rf pybind/virtualenv
