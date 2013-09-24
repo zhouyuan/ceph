@@ -11,7 +11,7 @@ import xml.etree.ElementTree
 import xml.sax.saxutils
 
 import flask
-from ceph_rest.argparse import \
+from ceph_argparse import \
     ArgumentError, CephPgid, CephOsdName, CephChoices, CephPrefix, \
     concise_sig, descsort, parse_funcsig, parse_json_funcsigs, \
     validate, json_command
