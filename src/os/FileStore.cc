@@ -26,6 +26,7 @@
 #if defined(__linux__)
 #include <linux/fs.h>
 #include <syscall.h>
+#include <linux/falloc.h>
 #endif
 
 #include <iostream>
@@ -3044,7 +3045,7 @@ int FileStore::_write(coll_t cid, const hobject_t& oid,
 	    << cpp_strerror(r) << dendl;
     goto out;
   }
-    
+
   // seek
   actual = ::lseek64(**fd, offset, SEEK_SET);
   if (actual < 0) {
@@ -3059,6 +3060,20 @@ int FileStore::_write(coll_t cid, const hobject_t& oid,
     lfn_close(fd);
     goto out;
   }
+
+#ifdef CEPH_HAVE_FALLOCATE
+# if !defined(DARWIN) && !defined(__FreeBSD__)
+  // hack: fallocate rbd?
+  if (oid.oid.name.find("rb.") == 0) {
+    struct stat st;
+    ::fstat(**fd, &st);
+    if (st.st_size == 0 && !(offset == 0 && len == 4194304)) {
+      dout(20) << "write fallocating to 4MB" << dendl;
+      fallocate(**fd, FALLOC_FL_KEEP_SIZE, 0, 4194304);
+    }
+  }
+# endif
+#endif
 
   // write
   r = bl.write_fd(**fd);
