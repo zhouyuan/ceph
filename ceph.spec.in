@@ -250,6 +250,21 @@ BuildRequires:  junit
 %description -n cephfs-java
 This package contains the Java libraries for the Ceph File System.
 
+%package -n radosgw-apache
+Summary:	Virtual package for configuring apache for radosgw
+Group:          System Environment/Libraries
+License:        LGPL-2.0
+Requires:	radosgw = %{version}-%{release}
+%if 0%{?suse_version}
+Requires:	apache2 = %{version}-%{release}
+%else
+Requires:	http2 = %{version}-%{release}
+%endif
+Requires:	mod_fastcgi = %{version}-%{release}
+%description -n radosgw-apache
+This is a virtual package for configuring radosgw
+and apache2.
+
 %if 0%{?opensuse} || 0%{?suse_version}
 %debug_package
 %endif
@@ -686,5 +701,16 @@ fi
 %defattr(-,root,root,-)
 %{_javadir}/libcephfs.jar
 %{_javadir}/libcephfs-test.jar
+
+#################################################################################
+%files -n radosgw-apache
+%defattr(-,root,root,-)
+%{_libdir}/libcephfs.so.*
+
+%post -n radosgw-apache
+/sbin/ldconfig
+
+%postun -n radosgw-apache
+/sbin/ldconfig
 
 %changelog
