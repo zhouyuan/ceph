@@ -3064,7 +3064,8 @@ int FileStore::_write(coll_t cid, const hobject_t& oid,
 #ifdef CEPH_HAVE_FALLOCATE
 # if !defined(DARWIN) && !defined(__FreeBSD__)
   // hack: fallocate rbd?
-  if (oid.oid.name.find("rb.") == 0) {
+  if (oid.oid.name.find("rb.") == 0 ||
+      oid.oid.name.find("rbd_data.") == 0) {
     struct stat st;
     ::fstat(**fd, &st);
     if (st.st_size == 0 && !(offset == 0 && len == 4194304)) {
