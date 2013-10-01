@@ -380,7 +380,7 @@ inline ostream& operator<<(ostream& out, const prettybyte_t& b)
   if (b.v > bump_after << 20)
     return out << (b.v >> 20) << " MB";    
   if (b.v > bump_after << 10)
-    return out << (b.v >> 10) << " KB";
+    return out << (b.v >> 10) << " kB";
   return out << b.v << " bytes";
 }
 
@@ -403,7 +403,7 @@ inline ostream& operator<<(ostream& out, const si_t& b)
   if (b.v > bump_after << 20)
     return out << (b.v >> 20) << "M";
   if (b.v > bump_after << 10)
-    return out << (b.v >> 10) << "K";
+    return out << (b.v >> 10) << "k";
   return out << b.v;
 }
 
@@ -426,7 +426,7 @@ inline ostream& operator<<(ostream& out, const pretty_si_t& b)
   if (b.v > bump_after << 20)
     return out << (b.v >> 20) << " M";
   if (b.v > bump_after << 10)
-    return out << (b.v >> 10) << " K";
+    return out << (b.v >> 10) << " k";
   return out << b.v << " ";
 }
 
@@ -446,7 +446,7 @@ inline ostream& operator<<(ostream& out, const kb_t& kb)
     return out << (kb.v >> 20) << " GB";    
   if (kb.v > bump_after << 10)
     return out << (kb.v >> 10) << " MB";
-  return out << kb.v << " KB";
+  return out << kb.v << " kB";
 }
 
 inline ostream& operator<<(ostream& out, const ceph_mon_subscribe_item& i)
