@@ -73,13 +73,27 @@ CrushWrapper &OSDMonitor::_get_stable_crush()
 void OSDMonitor::_get_pending_crush(CrushWrapper& newcrush)
 {
   bufferlist bl;
-  if (pending_inc.crush.length())
+  if (pending_inc.crush.length()) {
     bl = pending_inc.crush;
-  else
+    dout(20) << __func__ << " using pending_inc's " << bl.length() << " bytes" << dendl;
+  } else {
     osdmap.crush->encode(bl);
+    dout(20) << __func__ << " encoding the current e" << osdmap.get_epoch() << dendl;
+  }
 
   bufferlist::iterator p = bl.begin();
   newcrush.decode(p);
+
+  {
+    dout(30) << " crush dump: \n";
+    Formatter *f = new_formatter("json");
+    f->open_object_section("crush");
+    newcrush.dump(f);
+    f->close_section();
+    f->flush(*_dout);
+    delete f;
+    *_dout << dendl;
+  }
 }
 
 void OSDMonitor::create_initial()
