@@ -2655,6 +2655,20 @@ bool OSDMonitor::prepare_command(MMonCommand *m)
     name = oss.str();
   }
 
+  {
+    dout(30) << "osdmap:\n";
+    Formatter *f = new_formatter("json");
+    f->open_object_section("crushmap");
+    osdmap.crush->dump(f);
+    f->close_section();
+    f->open_object_section("osdmap");
+    osdmap.dump(f);
+    f->close_section();
+    f->flush(*_dout);
+    delete f;
+    *_dout << dendl;
+  }
+
   // Even if there's a pending state with changes that could affect
   // a command, considering that said state isn't yet committed, we
   // just don't care about those changes if the command currently being
