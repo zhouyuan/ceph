@@ -79,6 +79,12 @@ TYPE(PullOp)
 TYPE(PushOp)
 TYPE(PushReplyOp)
 
+#include "osd/HitSet.h"
+TYPE(ExplicitHashHitSet)
+TYPE(ExplicitObjectHitSet)
+TYPE(BloomHitSet)
+TYPE(HitSet)
+
 #include "os/ObjectStore.h"
 TYPE(ObjectStore::Transaction)
 
