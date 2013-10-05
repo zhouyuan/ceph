@@ -1818,7 +1818,7 @@ void OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
     pools[pool].set_pg_num(poolbase << pg_bits);
     pools[pool].set_pgp_num(poolbase << pgp_bits);
     pools[pool].last_change = epoch;
-    pools[pool].bloom_period = 300;
+    pools[pool].bloom_period = 30;
     pools[pool].bloom_fpp_micro = 1000;
     pools[pool].bloom_count = 64;
     if (p->first == CEPH_DATA_RULE)
