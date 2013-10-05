@@ -101,6 +101,48 @@ TEST(BloomFilter, SweepInt) {
 }
 
 
+TEST(BloomFilter, CompressibleSweep) {
+  float fpp = .01;
+  int max = 1024;
+  for (int div = 1; div < 10; div++) {
+    compressible_bloom_filter bf(max, fpp, 1);
+    int t = max/div;
+    for (int n = 0; n < t; n++)
+      bf.insert(n);
+
+    unsigned est = bf.approx_unique_element_count();
+    if (div > 1)
+      bf.compress(1.0 / div);
+
+    for (int n = 0; n < t; n++)
+      ASSERT_TRUE(bf.contains(n));
+
+    int test = max * 100;
+    int hit = 0;
+    for (int n = 0; n < test; n++)
+      if (bf.contains(100000 + n))
+	hit++;
+
+    double actual = (double)hit / (double)test;
+
+    bufferlist bl;
+    ::encode(bf, bl);
+
+    double byte_per_insert = (double)bl.length() / (double)max;
+
+    std::cout << max
+	      << "\t" << t
+	      << "\t" << est
+	      << "\t" << bf.approx_unique_element_count()
+	      << "\t" << fpp
+	      << "\t" << actual
+	      << "\t" << bl.length() << "\t" << byte_per_insert
+	      << std::endl;
+  }
+}
+
+
+
 TEST(BloomFilter, BinSweep) {
   int total_max = 16384;
   float total_fpp = .01;
