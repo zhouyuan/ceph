@@ -572,8 +572,8 @@ void librados::RadosClient::watch_notify(MWatchNotify *m)
 }
 
 int librados::RadosClient::mon_command(const vector<string>& cmd,
-					      bufferlist &inbl,
-					      bufferlist *outbl, string *outs)
+				       const bufferlist &inbl,
+				       bufferlist *outbl, string *outs)
 {
   Mutex mylock("RadosClient::mon_command::mylock");
   Cond cond;
@@ -591,8 +591,8 @@ int librados::RadosClient::mon_command(const vector<string>& cmd,
 }
 
 int librados::RadosClient::mon_command(int rank, const vector<string>& cmd,
-					      bufferlist &inbl,
-					      bufferlist *outbl, string *outs)
+				       const bufferlist &inbl,
+				       bufferlist *outbl, string *outs)
 {
   Mutex mylock("RadosClient::mon_command::mylock");
   Cond cond;
@@ -610,8 +610,8 @@ int librados::RadosClient::mon_command(int rank, const vector<string>& cmd,
 }
 
 int librados::RadosClient::mon_command(string name, const vector<string>& cmd,
-					      bufferlist &inbl,
-					      bufferlist *outbl, string *outs)
+				       const bufferlist &inbl,
+				       bufferlist *outbl, string *outs)
 {
   Mutex mylock("RadosClient::mon_command::mylock");
   Cond cond;
@@ -629,8 +629,8 @@ int librados::RadosClient::mon_command(string name, const vector<string>& cmd,
 }
 
 int librados::RadosClient::osd_command(int osd, vector<string>& cmd,
-					bufferlist& inbl,
-					bufferlist *poutbl, string *prs)
+				       const bufferlist& inbl,
+				       bufferlist *poutbl, string *prs)
 {
   Mutex mylock("RadosClient::osd_command::mylock");
   Cond cond;
@@ -656,8 +656,8 @@ int librados::RadosClient::osd_command(int osd, vector<string>& cmd,
 }
 
 int librados::RadosClient::pg_command(pg_t pgid, vector<string>& cmd,
-					bufferlist& inbl,
-					bufferlist *poutbl, string *prs)
+				      const bufferlist& inbl,
+				      bufferlist *poutbl, string *prs)
 {
   Mutex mylock("RadosClient::pg_command::mylock");
   Cond cond;
