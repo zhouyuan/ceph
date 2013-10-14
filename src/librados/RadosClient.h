@@ -82,6 +82,8 @@ public:
 
   uint64_t get_instance_id();
 
+  int wait_for_latest_osdmap();
+
   int create_ioctx(const char *name, IoCtxImpl **io);
 
   int get_fsid(std::string *s);
