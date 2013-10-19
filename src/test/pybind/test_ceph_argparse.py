@@ -460,10 +460,12 @@ class TestMDS(TestArgparse):
 													'toomany']))
 
     def test_add_data_pool(self):
-        self.check_1_natural_arg('mds', 'add_data_pool')
+        self.assert_valid_command(['mds', 'add_data_pool', '1'])
+        self.assert_valid_command(['mds', 'add_data_pool', 'foo'])
 
     def test_remove_data_pool(self):
-        self.check_1_natural_arg('mds', 'remove_data_pool')
+        self.assert_valid_command(['mds', 'remove_data_pool', '1'])
+        self.assert_valid_command(['mds', 'remove_data_pool', 'foo'])
 
     def test_newfs(self):
         self.assert_valid_command(['mds', 'newfs', '1', '2',
@@ -831,7 +833,7 @@ class TestOSD(TestArgparse):
                                                     uuid,
                                                     'toomany']))
 
-    def test_blackist(self):
+    def test_blacklist(self):
         for action in ('add', 'rm'):
             self.assert_valid_command(['osd', 'blacklist', action,
                                        '1.2.3.4/567'])
@@ -941,22 +943,17 @@ class TestOSD(TestArgparse):
 
     def test_pool_set(self):
         for var in ('size', 'min_size', 'crash_replay_interval',
-                    'pg_num', 'pgp_num', 'crush_ruleset'):
+                    'pg_num', 'pgp_num', 'crush_ruleset',
+					'hashpspool'):
             self.assert_valid_command(['osd', 'pool',
-                                       'set', 'poolname', var, '-1'])
+                                       'set', 'poolname', var, 'value'])
         assert_equal({}, validate_command(sigdict, ['osd', 'pool',
                                                     'set']))
         assert_equal({}, validate_command(sigdict, ['osd', 'pool',
                                                     'set', 'poolname']))
         assert_equal({}, validate_command(sigdict, ['osd', 'pool',
                                                     'set', 'poolname',
-                                                    'size', 'invalid']))
-        assert_equal({}, validate_command(sigdict, ['osd', 'pool',
-                                                    'set', 'poolname',
-                                                    'invalid', '-1']))
-        assert_equal({}, validate_command(sigdict, ['osd', 'pool',
-                                                    'set', 'poolname',
-                                                    'size', '-1',
+                                                    'size', 'value',
                                                     'toomany']))
 
     def test_pool_set_quota(self):

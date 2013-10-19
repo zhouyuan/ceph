@@ -112,7 +112,7 @@ COMMAND("pg send_pg_creates", "trigger pg creates to be issued",\
 	"pg", "rw", "cli,rest")
 COMMAND("pg dump " \
 	"name=dumpcontents,type=CephChoices,strings=all|summary|sum|delta|pools|osds|pgs|pgs_brief,n=N,req=false", \
-	"show human-readable versions of pg map", "pg", "r", "cli,rest")
+	"show human-readable versions of pg map (only 'all' valid with plain)", "pg", "r", "cli,rest")
 COMMAND("pg dump_json " \
 	"name=dumpcontents,type=CephChoices,strings=all|summary|sum|pools|osds|pgs,n=N,req=false", \
 	"show human-readable version of pg map in json only",\
@@ -284,11 +284,11 @@ COMMAND("mds unset " \
         "name=sure,type=CephString,req=false", \
         "unset <key>", "mds", "w", "cli,rest")
 COMMAND("mds add_data_pool " \
-	"name=poolid,type=CephInt,range=0", \
-	"add data pool <poolid>", "mds", "rw", "cli,rest")
+	"name=pool,type=CephString", \
+	"add data pool <pool>", "mds", "rw", "cli,rest")
 COMMAND("mds remove_data_pool " \
-	"name=poolid,type=CephInt,range=0", \
-	"remove data pool <poolid>", "mds", "rw", "cli,rest")
+	"name=pool,type=CephString", \
+	"remove data pool <pool>", "mds", "rw", "cli,rest")
 COMMAND("mds newfs " \
 	"name=metadata,type=CephInt,range=0 " \
 	"name=data,type=CephInt,range=0 " \
@@ -507,8 +507,8 @@ COMMAND("osd pool get " \
 	"get pool parameter <var>", "osd", "r", "cli,rest")
 COMMAND("osd pool set " \
 	"name=pool,type=CephPoolname " \
-	"name=var,type=CephChoices,strings=size|min_size|crash_replay_interval|pg_num|pgp_num|crush_ruleset " \
-	"name=val,type=CephInt", \
+	"name=var,type=CephChoices,strings=size|min_size|crash_replay_interval|pg_num|pgp_num|crush_ruleset|hashpspool " \
+	"name=val,type=CephString", \
 	"set pool parameter <var> to <val>", "osd", "rw", "cli,rest")
 // 'val' is a CephString because it can include a unit.  Perhaps
 // there should be a Python type for validation/conversion of strings
@@ -518,6 +518,10 @@ COMMAND("osd pool set-quota " \
 	"name=field,type=CephChoices,strings=max_objects|max_bytes " \
 	"name=val,type=CephString",
 	"set object or byte limit on pool", "osd", "rw", "cli,rest")
+COMMAND("osd pool stats " \
+        "name=name,type=CephString,req=false",
+        "obtain stats from all pools, or from specified pool",
+        "osd", "r", "cli,rest")
 COMMAND("osd reweight-by-utilization " \
 	"name=oload,type=CephInt,range=100,req=false", \
 	"reweight OSDs by utilization [overload-percentage-for-consideration, default 120]", \

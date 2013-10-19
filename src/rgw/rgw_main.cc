@@ -357,6 +357,13 @@ void RGWProcess::handle_request(RGWRequest *req)
     goto done;
   }
 
+  req->log(s, "init op");
+  ret = op->init_processing();
+  if (ret < 0) {
+    abort_early(s, op, ret);
+    goto done;
+  }
+
   req->log(s, "verifying op mask");
   ret = op->verify_op_mask();
   if (ret < 0) {
@@ -461,7 +468,7 @@ int main(int argc, const char **argv)
 
   /* alternative default for module */
   vector<const char *> def_args;
-  def_args.push_back("--debug-rgw=20");
+  def_args.push_back("--debug-rgw=1/5");
   def_args.push_back("--keyring=$rgw_data/keyring");
   def_args.push_back("--log-file=/var/log/radosgw/$cluster-$name");
 

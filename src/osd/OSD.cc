@@ -3278,13 +3278,15 @@ bool remove_dir(
   ObjectStore *store, SnapMapper *mapper,
   OSDriver *osdriver,
   ObjectStore::Sequencer *osr,
-  coll_t coll, DeletingStateRef dstate)
+  coll_t coll, DeletingStateRef dstate,
+  ThreadPool::TPHandle &handle)
 {
   vector<ghobject_t> olist;
   int64_t num = 0;
   ObjectStore::Transaction *t = new ObjectStore::Transaction;
   ghobject_t next;
   while (!next.is_max()) {
+    handle.reset_tp_timeout();
     store->collection_list_partial(
       coll,
       next,
@@ -3306,7 +3308,9 @@ bool remove_dir(
 	C_SaferCond waiter;
 	store->queue_transaction(osr, t, &waiter);
 	bool cont = dstate->pause_clearing();
+	handle.suspend_tp_timeout();
 	waiter.wait();
+	handle.reset_tp_timeout();
 	if (cont)
 	  cont = dstate->resume_clearing();
 	delete t;
@@ -3322,14 +3326,18 @@ bool remove_dir(
   C_SaferCond waiter;
   store->queue_transaction(osr, t, &waiter);
   bool cont = dstate->pause_clearing();
+  handle.suspend_tp_timeout();
   waiter.wait();
+  handle.reset_tp_timeout();
   if (cont)
     cont = dstate->resume_clearing();
   delete t;
   return cont;
 }
 
-void OSD::RemoveWQ::_process(pair<PGRef, DeletingStateRef> item)
+void OSD::RemoveWQ::_process(
+  pair<PGRef, DeletingStateRef> item,
+  ThreadPool::TPHandle &handle)
 {
   PGRef pg(item.first);
   SnapMapper &mapper = pg->snap_mapper;
@@ -3346,7 +3354,8 @@ void OSD::RemoveWQ::_process(pair<PGRef, DeletingStateRef> item)
        i != colls_to_remove.end();
        ++i) {
     bool cont = remove_dir(
-      pg->cct, store, &mapper, &driver, pg->osr.get(), *i, item.second);
+      pg->cct, store, &mapper, &driver, pg->osr.get(), *i, item.second,
+      handle);
     if (!cont)
       return;
   }
@@ -6388,6 +6397,34 @@ void OSD::handle_pg_backfill_reserve(OpRequestRef op)
   if (!require_same_or_newer_map(op, m->query_epoch))
     return;
 
+  PG::CephPeeringEvtRef evt;
+  if (m->type == MBackfillReserve::REQUEST) {
+    evt = PG::CephPeeringEvtRef(
+      new PG::CephPeeringEvt(
+	m->query_epoch,
+	m->query_epoch,
+	PG::RequestBackfillPrio(m->priority)));
+  } else if (m->type == MBackfillReserve::GRANT) {
+    evt = PG::CephPeeringEvtRef(
+      new PG::CephPeeringEvt(
+	m->query_epoch,
+	m->query_epoch,
+	PG::RemoteBackfillReserved()));
+  } else if (m->type == MBackfillReserve::REJECT) {
+    evt = PG::CephPeeringEvtRef(
+      new PG::CephPeeringEvt(
+	m->query_epoch,
+	m->query_epoch,
+	PG::RemoteReservationRejected()));
+  } else {
+    assert(0);
+  }
+
+  if (service.splitting(m->pgid)) {
+    peering_wait_for_split[m->pgid].push_back(evt);
+    return;
+  }
+
   PG *pg = 0;
   if (!_have_pg(m->pgid))
     return;
@@ -6395,30 +6432,7 @@ void OSD::handle_pg_backfill_reserve(OpRequestRef op)
   pg = _lookup_lock_pg(m->pgid);
   assert(pg);
 
-  if (m->type == MBackfillReserve::REQUEST) {
-    pg->queue_peering_event(
-      PG::CephPeeringEvtRef(
-	new PG::CephPeeringEvt(
-	  m->query_epoch,
-	  m->query_epoch,
-	  PG::RequestBackfillPrio(m->priority))));
-  } else if (m->type == MBackfillReserve::GRANT) {
-    pg->queue_peering_event(
-      PG::CephPeeringEvtRef(
-	new PG::CephPeeringEvt(
-	  m->query_epoch,
-	  m->query_epoch,
-	  PG::RemoteBackfillReserved())));
-  } else if (m->type == MBackfillReserve::REJECT) {
-    pg->queue_peering_event(
-      PG::CephPeeringEvtRef(
-	new PG::CephPeeringEvt(
-	  m->query_epoch,
-	  m->query_epoch,
-	  PG::RemoteReservationRejected())));
-  } else {
-    assert(0);
-  }
+  pg->queue_peering_event(evt);
   pg->unlock();
 }
 
@@ -6432,38 +6446,42 @@ void OSD::handle_pg_recovery_reserve(OpRequestRef op)
   if (!require_same_or_newer_map(op, m->query_epoch))
     return;
 
+  PG::CephPeeringEvtRef evt;
+  if (m->type == MRecoveryReserve::REQUEST) {
+    evt = PG::CephPeeringEvtRef(
+      new PG::CephPeeringEvt(
+	m->query_epoch,
+	m->query_epoch,
+	PG::RequestRecovery()));
+  } else if (m->type == MRecoveryReserve::GRANT) {
+    evt = PG::CephPeeringEvtRef(
+      new PG::CephPeeringEvt(
+	m->query_epoch,
+	m->query_epoch,
+	PG::RemoteRecoveryReserved()));
+  } else if (m->type == MRecoveryReserve::RELEASE) {
+    evt = PG::CephPeeringEvtRef(
+      new PG::CephPeeringEvt(
+	m->query_epoch,
+	m->query_epoch,
+	PG::RecoveryDone()));
+  } else {
+    assert(0);
+  }
+
+  if (service.splitting(m->pgid)) {
+    peering_wait_for_split[m->pgid].push_back(evt);
+    return;
+  }
+
   PG *pg = 0;
   if (!_have_pg(m->pgid))
     return;
 
   pg = _lookup_lock_pg(m->pgid);
-  if (!pg)
-    return;
+  assert(pg);
 
-  if (m->type == MRecoveryReserve::REQUEST) {
-    pg->queue_peering_event(
-      PG::CephPeeringEvtRef(
-	new PG::CephPeeringEvt(
-	  m->query_epoch,
-	  m->query_epoch,
-	  PG::RequestRecovery())));
-  } else if (m->type == MRecoveryReserve::GRANT) {
-    pg->queue_peering_event(
-      PG::CephPeeringEvtRef(
-	new PG::CephPeeringEvt(
-	  m->query_epoch,
-	  m->query_epoch,
-	  PG::RemoteRecoveryReserved())));
-  } else if (m->type == MRecoveryReserve::RELEASE) {
-    pg->queue_peering_event(
-      PG::CephPeeringEvtRef(
-	new PG::CephPeeringEvt(
-	  m->query_epoch,
-	  m->query_epoch,
-	  PG::RecoveryDone())));
-  } else {
-    assert(0);
-  }
+  pg->queue_peering_event(evt);
   pg->unlock();
 }
 
