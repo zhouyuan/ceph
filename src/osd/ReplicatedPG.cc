@@ -4249,6 +4249,16 @@ int ReplicatedPG::prepare_transaction(OpContext *ctx)
   // clone, if necessary
   make_writeable(ctx);
 
+  finish_ctx(ctx);
+
+  return result;
+}
+
+void ReplicatedPG::finish_ctx(OpContext *ctx)
+{
+  const hobject_t& soid = ctx->obs->oi.soid;
+  dout(20) << __func__ << " " << soid << " " << ctx << dendl;
+
   // snapset
   bufferlist bss;
   ::encode(ctx->new_snapset, bss);
@@ -4362,8 +4372,6 @@ int ReplicatedPG::prepare_transaction(OpContext *ctx)
     if (soid < scrubber.start)
       scrub_cstat.add(ctx->delta_stats, ctx->obs->oi.category);
   }
-
-  return result;
 }
 
 // ========================================================================
