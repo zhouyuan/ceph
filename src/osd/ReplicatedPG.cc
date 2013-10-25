@@ -1177,7 +1177,9 @@ void ReplicatedPG::do_op(OpRequestRef op)
   OpContext *ctx = new OpContext(op, m->get_reqid(), m->ops,
 				 &obc->obs, obc->ssc, 
 				 this);
-  if (!get_rw_locks(ctx)) {
+  if (m->get_flags() & CEPH_OSD_FLAG_SKIPRWLOCKS) {
+    dout(20) << __func__ << ": skipping rw locks" << dendl;
+  } else if (!get_rw_locks(ctx)) {
     op->mark_delayed("waiting for rw locks");
     close_op_ctx(ctx);
     return;
