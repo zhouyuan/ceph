@@ -7289,6 +7289,8 @@ void ReplicatedPG::on_flushed()
   }
   assert(object_contexts.empty());
   pgbackend->on_flushed();
+  flushed = true;
+  requeue_ops(pg->waiting_for_active);
 }
 
 void ReplicatedPG::on_removal(ObjectStore::Transaction *t)
