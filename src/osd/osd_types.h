@@ -763,6 +763,7 @@ struct pg_pool_t {
   __u8 type;                ///< TYPE_*
   __u8 size, min_size;      ///< number of osds in each pg
   __u8 crush_ruleset;       ///< crush placement rule set
+  __s16 crush_rule;         ///< crush rule (if >= 0, supercedes ruleset!)
   __u8 object_hash;         ///< hash mapping object name to ps
 private:
   __u32 pg_num, pgp_num;    ///< number of pgs
@@ -812,7 +813,7 @@ public:
 
   pg_pool_t()
     : flags(0), type(0), size(0), min_size(0),
-      crush_ruleset(0), object_hash(0),
+      crush_ruleset(0), crush_rule(-1), object_hash(0),
       pg_num(0), pgp_num(0),
       last_change(0),
       snap_seq(0), snap_epoch(0),
@@ -831,6 +832,7 @@ public:
   unsigned get_size() const { return size; }
   unsigned get_min_size() const { return min_size; }
   int get_crush_ruleset() const { return crush_ruleset; }
+  int get_crush_rule() const { return crush_rule; }
   int get_object_hash() const { return object_hash; }
   const char *get_object_hash_name() const {
     return ceph_str_hash_name(get_object_hash());

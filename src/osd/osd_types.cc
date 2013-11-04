@@ -899,7 +899,7 @@ void pg_pool_t::encode(bufferlist& bl, uint64_t features) const
     return;
   }
 
-  ENCODE_START(10, 5, bl);
+  ENCODE_START(11, 5, bl);
   ::encode(type, bl);
   ::encode(size, bl);
   ::encode(crush_ruleset, bl);
@@ -927,6 +927,7 @@ void pg_pool_t::encode(bufferlist& bl, uint64_t features) const
   ::encode(read_tier, bl);
   ::encode(write_tier, bl);
   ::encode(properties, bl);
+  ::encode(crush_rule, bl);
   ENCODE_FINISH(bl);
 }
 
@@ -997,6 +998,10 @@ void pg_pool_t::decode(bufferlist::iterator& bl)
   if (struct_v >= 10) {
     ::decode(properties, bl);
   }
+  if (struct_v >= 11)
+    ::decode(crush_rule, bl);
+  else
+    crush_rule = -1;
   DECODE_FINISH(bl);
   calc_pg_masks();
 }

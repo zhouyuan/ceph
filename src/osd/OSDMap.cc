@@ -1060,7 +1060,9 @@ int OSDMap::_pg_to_osds(const pg_pool_t& pool, pg_t pg, vector<int>& osds) const
   unsigned size = pool.get_size();
 
   // what crush rule?
-  int ruleno = crush->find_rule(pool.get_crush_ruleset(), pool.get_type(), size);
+  int ruleno = pool.get_crush_rule();
+  if (ruleno < 0)
+    ruleno = crush->find_rule(pool.get_crush_ruleset(), pool.get_type(), size);
   if (ruleno >= 0)
     crush->do_rule(ruleno, pps, osds, size, osd_weight);
 
@@ -1818,6 +1820,7 @@ void OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
     pools[pool].size = cct->_conf->osd_pool_default_size;
     pools[pool].min_size = cct->_conf->get_osd_pool_default_min_size();
     pools[pool].crush_ruleset = p->first;
+    pools[pool].crush_rule = p->first;
     pools[pool].object_hash = CEPH_STR_HASH_RJENKINS;
     pools[pool].set_pg_num(poolbase << pg_bits);
     pools[pool].set_pgp_num(poolbase << pgp_bits);
@@ -1947,6 +1950,7 @@ int OSDMap::build_simple_from_conf(CephContext *cct, epoch_t e, uuid_d &fsid,
     pools[pool].size = cct->_conf->osd_pool_default_size;
     pools[pool].min_size = cct->_conf->get_osd_pool_default_min_size();
     pools[pool].crush_ruleset = p->first;
+    pools[pool].crush_rule = p->first;
     pools[pool].object_hash = CEPH_STR_HASH_RJENKINS;
     pools[pool].set_pg_num((numosd + 1) << pg_bits);
     pools[pool].set_pgp_num((numosd + 1) << pgp_bits);
