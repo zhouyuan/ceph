@@ -428,8 +428,9 @@ COMMAND("osd crush tunables " \
 COMMAND("osd crush rule create-simple " \
 	"name=name,type=CephString,goodchars=[A-Za-z0-9-_.] " \
 	"name=root,type=CephString,goodchars=[A-Za-z0-9-_.] " \
-	"name=type,type=CephString,goodchars=[A-Za-z0-9-_.]",
-	"create crush rule <name> in <root> of type <type>", \
+	"name=type,type=CephString,goodchars=[A-Za-z0-9-_.] " \
+	"name=mode,type=CephChoices,strings=firstn|indep,goodchars=[A-Za-z0-9-_.],req=false",
+	"create crush rule <name> in <root>, replicated across type <type>, using choose mode of <firstn|indep> (firstn default, indep best for erasure pools)", \
 	"osd", "rw", "cli,rest")
 COMMAND("osd crush rule rm " \
 	"name=name,type=CephString,goodchars=[A-Za-z0-9-_.] ",	\
