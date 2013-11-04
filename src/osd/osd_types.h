@@ -828,6 +828,7 @@ public:
   void dump(Formatter *f) const;
 
   uint64_t get_flags() const { return flags; }
+  bool test_flag(uint64_t f) const { return flags & f; }
   unsigned get_type() const { return type; }
   unsigned get_size() const { return size; }
   unsigned get_min_size() const { return min_size; }

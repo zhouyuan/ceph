@@ -504,6 +504,17 @@ public:
       return true;
     return false;
   }
+  bool ruleset_exists(unsigned rset) const {
+    if (!crush) return false;
+    for (unsigned ruleno = 0; ruleno < crush->max_rules; ++ruleno) {
+      if (crush->rules[ruleno] &&
+	  crush->rules[ruleno]->mask.ruleset == rset) {
+	return true;
+      }
+    }
+    return false;
+  }
+
   int get_rule_len(unsigned ruleno) const {
     crush_rule *r = get_rule(ruleno);
     if (IS_ERR(r)) return PTR_ERR(r);
