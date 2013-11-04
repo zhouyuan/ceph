@@ -2288,6 +2288,9 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
         f->dump_int("crash_replay_interval", p->get_crash_replay_interval());
       } else if (var == "crush_ruleset") {
         f->dump_int("crush_ruleset", p->get_crush_ruleset());
+      } else if (var == "hashpspool") {
+	f->dump_string("hashpspool", p->test_flag(pg_pool_t::FLAG_HASHPSPOOL) ?
+		       "true" : "false");
       }
 
       f->close_section();
@@ -2305,6 +2308,8 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
         ss << "crash_replay_interval: " << p->get_crash_replay_interval();
       } else if (var == "crush_ruleset") {
         ss << "crush_ruleset: " << p->get_crush_ruleset();
+      } else if (var == "hashpspool") {
+	ss << "hashpspool: " << (p->test_flag(pg_pool_t::FLAG_HASHPSPOOL) ? "true" : "false");
       }
       rdata.append(ss);
       ss.str("");
