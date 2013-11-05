@@ -318,7 +318,7 @@ ceph osd reweight 0 0.9
 expect_false ceph osd reweight 0 -1
 ceph osd reweight 0 1
 
-for s in pg_num pgp_num size min_size crash_replay_interval crush_ruleset; do
+for s in pg_num pgp_num size min_size crash_replay_interval crush_ruleset crush_rule; do
 	ceph osd pool get data $s
 done
 
@@ -331,6 +331,11 @@ ceph osd pool set data hashpspool true
 ceph osd pool set data hashpspool false
 
 ceph osd pool get rbd crush_ruleset | grep 'crush_ruleset: 2'
+ceph osd pool get rbd crush_rule | grep 'crush_rule: rbd'
+
+ceph osd pool set rbd crush_rule data
+ceph osd pool set rbd crush_rule 0
+ceph osd pool set rbd crush_rule rbd
 
 ceph osd thrash 10
 

@@ -2288,6 +2288,12 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
         f->dump_int("crash_replay_interval", p->get_crash_replay_interval());
       } else if (var == "crush_ruleset") {
         f->dump_int("crush_ruleset", p->get_crush_ruleset());
+      } else if (var == "crush_rule") {
+	if (osdmap.crush->rule_exists(p->get_crush_rule()))
+	  f->dump_string("crush_rule",
+			 osdmap.crush->get_rule_name(p->get_crush_rule()));
+	else
+	  f->dump_int("crush_rule", p->get_crush_rule());
       } else if (var == "hashpspool") {
 	f->dump_string("hashpspool", p->test_flag(pg_pool_t::FLAG_HASHPSPOOL) ?
 		       "true" : "false");
@@ -2308,6 +2314,12 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
         ss << "crash_replay_interval: " << p->get_crash_replay_interval();
       } else if (var == "crush_ruleset") {
         ss << "crush_ruleset: " << p->get_crush_ruleset();
+      } else if (var == "crush_rule") {
+	if (osdmap.crush->rule_exists(p->get_crush_rule()))
+	  ss << "crush_rule: "
+	     << osdmap.crush->get_rule_name(p->get_crush_rule());
+	else
+	  ss << "crush_rule: " << p->get_crush_rule();
       } else if (var == "hashpspool") {
 	ss << "hashpspool: " << (p->test_flag(pg_pool_t::FLAG_HASHPSPOOL) ? "true" : "false");
       }
@@ -2834,6 +2846,23 @@ int OSDMonitor::prepare_command_pool_set(map<string,cmd_vartype> &cmdmap,
       ss << "set pool " << pool << " crush_ruleset to " << n;
     } else {
       ss << "crush ruleset " << n << " does not exist";
+      return -ENOENT;
+    }
+  } else if (var == "crush_rule") {
+    if (interr.length()) {
+      // rule by name?
+      n = osdmap.crush->get_rule_id(val);
+      if (n < 0) {
+	ss << "error parsing integer value '" << val << "': " << interr;
+	return -EINVAL;
+      }
+    }
+    if (osdmap.crush->rule_exists(n) || n == -1) {
+      p.crush_rule = n;
+      ss << "set pool " << pool << " crush_rule to " << n
+	 << " (" << osdmap.crush->get_rule_name(n) << ")";
+    } else {
+      ss << "crush rule " << val << " does not exist";
       return -ENOENT;
     }
   } else if (var == "hashpspool") {
