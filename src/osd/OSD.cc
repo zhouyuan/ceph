@@ -887,7 +887,7 @@ OSD::OSD(CephContext *cct_, int id, Messenger *internal_messenger, Messenger *ex
   peering_wq(this, cct->_conf->osd_op_thread_timeout, &op_tp),
   map_lock("OSD::map_lock"),
   peer_map_epoch_lock("OSD::peer_map_epoch_lock"),
-  pg_map_lock("OSD::pg_map_lock"),
+  pg_map_lock("OSD::pg_map_lock", cct_),
   debug_drop_pg_create_probability(cct->_conf->osd_debug_drop_pg_create_probability),
   debug_drop_pg_create_duration(cct->_conf->osd_debug_drop_pg_create_duration),
   debug_drop_pg_create_left(-1),

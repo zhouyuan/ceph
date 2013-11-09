@@ -19,18 +19,24 @@
 
 #include <pthread.h>
 #include "lockdep.h"
+#include "common/ceph_context.h"
+#include "common/debug.h"
 
 class RWLock
 {
   mutable pthread_rwlock_t L;
   const char *name;
   int id;
+  CephContext *cct;
 
 public:
   RWLock(const RWLock& other);
   const RWLock& operator=(const RWLock& other);
 
-  RWLock(const char *n) : name(n), id(-1) {
+  RWLock(
+    const char *n,
+    CephContext *cct = 0
+    ) : name(n), id(-1), cct(cct) {
     pthread_rwlock_init(&L, NULL);
     if (g_lockdep) id = lockdep_register(name);
   }
@@ -42,41 +48,72 @@ public:
 
   void unlock() {
     if (g_lockdep) id = lockdep_will_unlock(name, id);
-    pthread_rwlock_unlock(&L);
+    int r = pthread_rwlock_unlock(&L);
+    assert(r == 0);
   }
 
   // read
   void get_read() {
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << dendl;
     if (g_lockdep) id = lockdep_will_lock(name, id);
-    pthread_rwlock_rdlock(&L);
+    int r = pthread_rwlock_rdlock(&L);
+    assert(r == 0);
     if (g_lockdep) id = lockdep_locked(name, id);
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
   }
   bool try_get_read() {
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << dendl;
     if (pthread_rwlock_tryrdlock(&L) == 0) {
       if (g_lockdep) id = lockdep_locked(name, id);
+      if (cct)
+	lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
       return true;
     }
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
     return false;
   }
   void put_read() {
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << dendl;
     unlock();
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
   }
 
   // write
   void get_write() {
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << dendl;
     if (g_lockdep) id = lockdep_will_lock(name, id);
-    pthread_rwlock_wrlock(&L);
+    int r = pthread_rwlock_wrlock(&L);
+    assert(r == 0);
     if (g_lockdep) id = lockdep_locked(name, id);
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
   }
   bool try_get_write() {
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << dendl;
     if (pthread_rwlock_trywrlock(&L) == 0) {
       if (g_lockdep) id = lockdep_locked(name, id);
+      if (cct)
+	lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
       return true;
     }
     return false;
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
   }
   void put_write() {
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << dendl;
     unlock();
+    if (cct)
+      lgeneric_dout(cct, 0) << __func__ << ": " << name << " exit " << dendl;
   }
 
 public:
