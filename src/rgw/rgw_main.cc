@@ -393,6 +393,7 @@ void RGWProcess::handle_request(RGWRequest *req)
     dump_continue(s);
 
   req->log(s, "executing");
+  dump_bucket_from_state(s);
   op->execute();
   op->complete();
 done:
