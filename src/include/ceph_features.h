@@ -63,6 +63,7 @@
 #define CEPH_FEATURE_OSD_MIN_SIZE_RECOVERY (1ULL<<49)
 // duplicated since it was introduced at the same time as MIN_SIZE_RECOVERY
 #define CEPH_FEATURE_OSD_PROXY_FEATURES (1ULL<<49)  /* overlap w/ above */
+#define CEPH_FEATURE_BLKIN_TRACING (1ULL<<57) // enabled by ifdef, don't overlap
 
 #define CEPH_FEATURE_RESERVED2 (1ULL<<61)  /* slow down, we are almost out... */
 #define CEPH_FEATURE_RESERVED  (1ULL<<62)  /* DO NOT USE THIS ... last bit! */
@@ -89,6 +90,13 @@ static inline unsigned long long ceph_sanitize_features(unsigned long long f) {
 		return f;
 	}
 }
+
+// conditionally include blkin in CEPH_FEATURES_ALL/SUPPORTED_DEFAULT
+#ifdef WITH_BLKIN
+#define CEPH_FEATURES_BLKIN CEPH_FEATURE_BLKIN_TRACING
+#else
+#define CEPH_FEATURES_BLKIN 0
+#endif
 
 /*
  * Features supported.  Should be everything above.
@@ -148,6 +156,7 @@ static inline unsigned long long ceph_sanitize_features(unsigned long long f) {
 	 CEPH_FEATURE_MDS_QUOTA | \
          CEPH_FEATURE_CRUSH_V4 |	     \
          CEPH_FEATURE_OSD_MIN_SIZE_RECOVERY |		 \
+	 CEPH_FEATURES_BLKIN | \
 	 0ULL)
 
 #define CEPH_FEATURES_SUPPORTED_DEFAULT  CEPH_FEATURES_ALL

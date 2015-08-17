@@ -42,6 +42,10 @@ class Messenger {
 private:
   list<Dispatcher*> dispatchers;
   list <Dispatcher*> fast_dispatchers;
+  ZTracer::Endpoint trace_endpoint;
+
+  void set_endpoint_addr(const sockaddr_storage& ss, int port,
+                         const entity_name_t &name);
 
 protected:
   /// the "name" of the local daemon. eg client.99
@@ -129,7 +133,8 @@ public:
    * or use the create() function.
    */
   Messenger(CephContext *cct_, entity_name_t w)
-    : my_inst(),
+    : trace_endpoint("0.0.0.0", 0, "Messenger"),
+      my_inst(),
       default_send_priority(CEPH_MSG_PRIO_DEFAULT), started(false),
       magic(0),
       socket_priority(-1),
@@ -188,8 +193,18 @@ protected:
   /**
    * set messenger's address
    */
-  virtual void set_myaddr(const entity_addr_t& a) { my_inst.addr = a; }
+  virtual void set_myaddr(const entity_addr_t& a) {
+    my_inst.addr = a;
+    set_endpoint_addr(a.addr, a.get_port(), my_inst.name);
+  }
 public:
+  /**
+   * @return the zipkin trace endpoint
+   */
+  const ZTracer::Endpoint* get_trace_endpoint() const {
+    return &trace_endpoint;
+  }
+
   /**
    * Retrieve the Messenger's name.
    *

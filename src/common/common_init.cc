@@ -22,6 +22,7 @@
 #include "common/errno.h"
 #include "common/safe_io.h"
 #include "common/version.h"
+#include "common/zipkin_trace.h"
 #include "include/color.h"
 
 #include <errno.h>
