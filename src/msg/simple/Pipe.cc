@@ -1588,6 +1588,8 @@ void Pipe::reader()
 	continue;
       }
 
+      m->trace.event("pipe read message");
+
       if (state == STATE_CLOSED ||
 	  state == STATE_CONNECTING) {
 	msgr->dispatch_throttle_release(m->get_dispatch_throttle_size());
@@ -1823,6 +1825,8 @@ void Pipe::writer()
 	blist.append(m->get_data());
 
         pipe_lock.Unlock();
+
+        m->trace.event("pipe writing message");
 
         ldout(msgr->cct,20) << "writer sending " << m->get_seq() << " " << m << dendl;
 	int rc = write_message(header, footer, blist);
@@ -2076,6 +2080,8 @@ int Pipe::read_message(Message **pm, AuthSessionHandler* auth_handler)
     ret = -EINVAL;
     goto out_dethrottle;
   }
+  message->trace.init("Messenger", msgr->get_trace_endpoint());
+  message->trace.keyval("Messenger_type", message->get_type_name());
 
   //
   //  Check the signature if one should be present.  A zero return indicates success. PLR
