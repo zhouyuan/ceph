@@ -22,6 +22,7 @@
 #include "include/Context.h"
 #include "common/Finisher.h"
 #include "common/TrackedOp.h"
+#include "common/zipkin_trace.h"
 
 class PerfCounters;
 

@@ -874,8 +874,11 @@ void FileJournal::queue_completions_thru(uint64_t seq)
     }
     if (next.finish)
       finisher->queue(next.finish);
-    if (next.tracked_op)
+    if (next.tracked_op) {
       next.tracked_op->mark_event("journaled_completion_queued");
+      next.tracked_op->journal_trace.event("queued completion");
+      next.tracked_op->journal_trace.keyval("completed through", seq);
+    }
   }
   finisher_cond.Signal();
 }
@@ -934,8 +937,10 @@ int FileJournal::prepare_single_write(bufferlist& bl, off64_t& queue_pos, uint64
   }
   bl.append((const char*)&h, sizeof(h));
 
-  if (next_write.tracked_op)
+  if (next_write.tracked_op) {
     next_write.tracked_op->mark_event("write_thread_in_journal_buffer");
+    next_write.tracked_op->journal_trace.event("prepare_single_write");
+  }
 
   // pop from writeq
   pop_write();
@@ -1498,8 +1503,6 @@ void FileJournal::submit_entry(uint64_t seq, bufferlist& e, int alignment,
 
   throttle_ops.take(1);
   throttle_bytes.take(e.length());
-  if (osd_op)
-    osd_op->mark_event("commit_queued_for_journal_write");
   if (logger) {
     logger->set(l_os_jq_max_ops, throttle_ops.get_max());
     logger->set(l_os_jq_max_bytes, throttle_bytes.get_max());
@@ -1507,6 +1510,12 @@ void FileJournal::submit_entry(uint64_t seq, bufferlist& e, int alignment,
     logger->set(l_os_jq_bytes, throttle_bytes.get_current());
   }
 
+  if (osd_op) {
+    osd_op->mark_event("commit_queued_for_journal_write");
+    osd_op->journal_trace.init("journal", &trace_endpoint, &osd_op->store_trace);
+    osd_op->journal_trace.event("submit_entry");
+    osd_op->journal_trace.keyval("seq", seq);
+  }
   {
     Mutex::Locker l1(writeq_lock);  // ** lock **
     Mutex::Locker l2(completions_lock);  // ** lock **
@@ -1516,6 +1525,8 @@ void FileJournal::submit_entry(uint64_t seq, bufferlist& e, int alignment,
     if (writeq.empty())
       writeq_cond.Signal();
     writeq.push_back(write_item(seq, e, alignment, osd_op));
+    if (osd_op)
+      osd_op->journal_trace.keyval("queue depth", writeq.size());
   }
 }
 
