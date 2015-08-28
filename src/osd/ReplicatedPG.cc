@@ -1246,6 +1246,10 @@ void ReplicatedPG::do_request(
     osd->reply_op_error(op, -EPERM);
     return;
   }
+  if (op->osd_trace) {
+    op->pg_trace.init("pg op", &trace_endpoint, &op->osd_trace);
+    op->pg_trace.event("do request");
+  }
   assert(!op_must_wait_for_map(get_osdmap()->get_epoch(), op));
   if (can_discard_request(op)) {
     return;
