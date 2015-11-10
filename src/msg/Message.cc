@@ -781,7 +781,7 @@ void Message::decode_trace(bufferlist::iterator &p, bool create)
   if (!connection)
     return;
 
-  const auto endpoint = connection->get_messenger()->get_trace_endpoint();
+  const ZTracer::Endpoint* endpoint = connection->get_messenger()->get_trace_endpoint();
   blkin_trace_info info = {};
 
   // only decode a trace if both sides of the connection agree

@@ -1110,7 +1110,7 @@ void ReplicatedBackend::issue_op(
 	    pinfo);
     }
     if (op->op)
-      wr->trace.init("replicated op", nullptr, &op->op->pg_trace);
+      wr->trace.init("replicated op", NULL, &op->op->pg_trace);
     get_parent()->send_message_osd_cluster(
       peer.osd, wr, get_osdmap()->get_epoch());
   }

@@ -8231,8 +8231,8 @@ bool OSD::op_is_discardable(MOSDOp *op)
 void OSD::enqueue_op(PG *pg, OpRequestRef& op)
 {
   utime_t latency = ceph_clock_now(cct) - op->get_req()->get_recv_stamp();
-  auto priority = op->get_req()->get_priority();
-  auto cost = op->get_req()->get_cost();
+  unsigned priority = op->get_req()->get_priority();
+  int cost = op->get_req()->get_cost();
 
   dout(15) << "enqueue_op " << op << " prio " << priority
 	   << " cost " << cost << " latency " << latency
