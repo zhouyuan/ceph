@@ -1448,6 +1448,20 @@ private:
           sdata_lock(lock_name.c_str()),
           sdata_op_ordering_lock(ordering_lock.c_str()),
           pqueue(max_tok_per_prio, min_cost) {}
+      int get_pqueue_length() {
+        sdata_op_ordering_lock.Lock();
+        int size = pqueue.length();
+        sdata_op_ordering_lock.Unlock();
+        return size;
+      }
+      int pg_queue_length() {
+        int size = 0;
+        sdata_op_ordering_lock.Lock();
+        for(map<PG*, list<OpRequestRef> >::iterator it = pg_for_processing.begin(); it != pg_for_processing.end(); it++)
+           size += it->second.size();
+        sdata_op_ordering_lock.Unlock();
+        return size;
+      }
     };
 
     vector<ShardData*> shard_list;
@@ -2334,6 +2348,8 @@ public:
   void force_remount();
 
   int init_op_flags(OpRequestRef& op);
+  bool check_write_flags(OpRequestRef& op);
+  bool check_read_flags(OpRequestRef& op);
 
   OSDService service;
   friend class OSDService;

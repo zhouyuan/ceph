@@ -1720,6 +1720,7 @@ void FileStore::queue_op(OpSequencer *osr, Op *o)
 
   osr->queue(o);
   o->trace.event("queued");
+  o->trace.keyval("filestore queue depth", op_queue.size());
 
   logger->inc(l_os_ops);
   logger->inc(l_os_bytes, o->bytes);
@@ -2010,6 +2011,7 @@ void FileStore::_journaled_ahead(OpSequencer *osr, Op *o, Context *ondisk)
   if (!to_queue.empty()) {
     ondisk_finisher.queue(to_queue);
   }
+  o->trace.keyval("filestore ondisk finisher queue depth", ondisk_finisher.get_queue_depth());
 }
 
 int FileStore::_do_transactions(

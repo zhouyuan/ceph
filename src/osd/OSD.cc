@@ -5439,8 +5439,16 @@ void OSD::ms_fast_dispatch(Message *m)
     tracepoint(osd, ms_fast_dispatch, reqid.name._type,
         reqid.name._num, reqid.tid, reqid.inc);
   }
-  if (m->trace)
+  if (m->trace) {
+    std::stringstream ss;
+    ss << "osd op";
+    if (check_write_flags(op))
+      ss << " write";
+    if (check_read_flags(op))
+      ss << " read";
+    m->trace.keyval("Messenger_type", ss.str().c_str());
     op->osd_trace.init("osd op", &trace_endpoint, &m->trace);
+  }
   OSDMapRef nextmap = service.get_nextmap_reserved();
   Session *session = static_cast<Session*>(m->get_connection()->get_priv());
   if (session) {
@@ -8334,7 +8342,20 @@ void OSD::ShardedOpWQ::_enqueue(pair<PGRef, OpRequestRef> item) {
     sdata->pqueue.enqueue(item.second->get_req()->get_source_inst(),
       priority, cost, item);
   sdata->sdata_op_ordering_lock.Unlock();
-
+  for(int i=0; i < shard_list.size(); i++) {
+   ShardData* ss = shard_list[i];
+   int l1 = ss->get_pqueue_length();
+   int l2 = ss->pg_queue_length();
+   int l = l1 + l2;
+   stringstream sss;
+   sss << i;
+   string name = string("shard ") + sss.str();
+   string pqueue_name = name + string(" queue");
+   string pg_process = name + string(" pg process");
+   item.second->osd_trace.keyval(name.c_str(), l);
+   item.second->osd_trace.keyval(pqueue_name.c_str(), l1);
+   item.second->osd_trace.keyval(pg_process.c_str(), l2);
+  }
   sdata->sdata_lock.Lock();
   sdata->sdata_cond.SignalOne();
   sdata->sdata_lock.Unlock();
@@ -8631,6 +8652,33 @@ void OSD::get_latest_osdmap()
   dout(10) << __func__ << " -- finish" << dendl;
 }
 
+bool OSD::check_write_flags(OpRequestRef& op)
+{
+  bool write = false;
+  if (op->get_req()->get_type() == CEPH_MSG_OSD_OP) {
+    MOSDOp *m = static_cast<MOSDOp*>(op->get_req());
+    vector<OSDOp>::iterator iter;
+    for (iter = m->ops.begin(); iter != m->ops.end(); ++iter) {
+      if (ceph_osd_op_mode_modify(iter->op.op))
+        write = true;
+    }
+  }
+  return write;
+}
+bool OSD::check_read_flags(OpRequestRef& op)
+{
+  bool read = false;
+  if (op->get_req()->get_type() == CEPH_MSG_OSD_OP) {
+     MOSDOp *m = static_cast<MOSDOp*>(op->get_req());
+     vector<OSDOp>::iterator iter;
+     for (iter = m->ops.begin(); iter != m->ops.end(); ++iter) {
+       if (ceph_osd_op_mode_read(iter->op.op))
+         read = true;
+     }
+  }
+  return read;
+}
+  
 // --------------------------------
 
 int OSD::init_op_flags(OpRequestRef& op)

@@ -2081,7 +2081,6 @@ int Pipe::read_message(Message **pm, AuthSessionHandler* auth_handler)
     goto out_dethrottle;
   }
   message->trace.init("Messenger", msgr->get_trace_endpoint());
-  message->trace.keyval("Messenger_type", message->get_type_name());
 
   //
   //  Check the signature if one should be present.  A zero return indicates success. PLR

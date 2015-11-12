@@ -875,6 +875,7 @@ void FileJournal::queue_completions_thru(uint64_t seq)
     if (next.finish)
       finisher->queue(next.finish);
     if (next.tracked_op) {
+      next.tracked_op->journal_trace.keyval("journal finisher queue depth", finisher->get_queue_depth());
       next.tracked_op->mark_event("journaled_completion_queued");
       next.tracked_op->journal_trace.event("queued completion");
       next.tracked_op->journal_trace.keyval("completed through", seq);
@@ -1526,7 +1527,7 @@ void FileJournal::submit_entry(uint64_t seq, bufferlist& e, int alignment,
       writeq_cond.Signal();
     writeq.push_back(write_item(seq, e, alignment, osd_op));
     if (osd_op)
-      osd_op->journal_trace.keyval("queue depth", writeq.size());
+      osd_op->journal_trace.keyval("journal queue depth", writeq.size());
   }
 }
 

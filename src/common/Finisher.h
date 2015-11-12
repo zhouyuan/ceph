@@ -37,6 +37,7 @@ class Finisher {
   vector<Context*> finisher_queue;
   list<pair<Context*,int> > finisher_queue_rval;
   PerfCounters *logger;
+  string finisher_name;
   
   void *finisher_thread_entry();
 
@@ -94,6 +95,15 @@ class Finisher {
     finisher_lock.Unlock();
     ls.clear();
   }
+  int get_queue_depth() {
+    finisher_lock.Lock();
+    int size = finisher_queue.size();
+    finisher_lock.Unlock();
+    return size;
+  }
+  string get_name() {
+    return finisher_name;
+  }
   
   void start();
   void stop();
@@ -104,7 +114,9 @@ class Finisher {
     cct(cct_), finisher_lock("Finisher::finisher_lock"),
     finisher_stop(false), finisher_running(false),
     logger(0),
-    finisher_thread(this) {}
+    finisher_thread(this) {
+    finisher_name = string("finisher");
+  }
   Finisher(CephContext *cct_, string name) :
     cct(cct_), finisher_lock("Finisher::finisher_lock"),
     finisher_stop(false), finisher_running(false),
@@ -116,6 +128,7 @@ class Finisher {
     logger = b.create_perf_counters();
     cct->get_perfcounters_collection()->add(logger);
     logger->set(l_finisher_queue_len, 0);
+    finisher_name = string("finisher-") + name;
   }
 
   ~Finisher() {
