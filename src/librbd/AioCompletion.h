@@ -16,6 +16,7 @@
 #include "librbd/internal.h"
 
 #include "osdc/Striper.h"
+#include "common/zipkin_trace.h"
 
 namespace librbd {
 
@@ -63,6 +64,7 @@ namespace librbd {
     size_t read_buf_len;
 
     AsyncOperation async_op;
+    ZTracer::Trace trace;
 
     AioCompletion() : lock("AioCompletion::lock", true),
 		      done(false), rval(0), complete_cb(NULL),
@@ -93,7 +95,11 @@ namespace librbd {
         ictx = i;
         aio_type = t;
         start_time = ceph_clock_now(ictx->cct);
-
+        ZTracer::Endpoint trace_endpoint("0.0.0.0", 0, "librbd");
+        stringstream ss;
+        ss << aio_type;
+        trace.init(ss.str().c_str(), &trace_endpoint);
+        trace.event("aio_write_initial");
 	async_op.start_op(*ictx);
       }
     }

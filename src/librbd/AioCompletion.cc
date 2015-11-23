@@ -65,6 +65,7 @@ namespace librbd {
 
   void AioCompletion::complete() {
     tracepoint(librbd, aio_complete_enter, this, rval);
+    trace.event("aio_write_finish");
     utime_t elapsed;
     assert(lock.is_locked());
     elapsed = ceph_clock_now(ictx->cct) - start_time;
