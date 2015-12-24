@@ -44,6 +44,7 @@ To be safe, each of these calls would need to be in a separate :finally
 block::
 
     cluster = rados.Rados(conffile='my_ceph_conf')
+    cluster.connect()
     try:
         ioctx = cluster.open_ioctx('my_pool')
         try:
@@ -67,6 +68,7 @@ automatically (see :pep:`343`). Using them as context managers, the
 above example becomes::
 
     with rados.Rados(conffile='my_ceph.conf') as cluster:
+        cluster.connect()
         with cluster.open_ioctx('mypool') as ioctx:
             rbd_inst = rbd.RBD()
             size = 4 * 1024**3  # 4 GiB
