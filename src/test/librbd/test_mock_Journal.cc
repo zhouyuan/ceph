@@ -9,6 +9,8 @@
 #include "common/Mutex.h"
 #include "cls/journal/cls_journal_types.h"
 #include "journal/Journaler.h"
+#include "librbd/AioCompletion.h"
+#include "librbd/AioObjectRequest.h"
 #include "librbd/Journal.h"
 #include "librbd/Utils.h"
 #include "librbd/journal/Replay.h"
@@ -283,18 +285,20 @@ public:
     bl.append_zero(length);
 
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
-    return mock_journal.append_write_event(nullptr, 0, length, bl, {}, false);
+    return mock_journal.append_write_event(0, length, bl, {}, false);
   }
 
   uint64_t when_append_io_event(MockJournalImageCtx &mock_image_ctx,
                                 MockJournal &mock_journal,
-                                AioCompletion *aio_comp = nullptr) {
+                                AioObjectRequest *object_request = nullptr) {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
-    if (aio_comp != nullptr) {
-      aio_comp->init_time(mock_image_ctx.image_ctx, librbd::AIO_TYPE_NONE);
+    MockJournal::AioObjectRequests object_requests;
+    if (object_request != nullptr) {
+      object_requests.push_back(object_request);
     }
     return mock_journal.append_io_event(
-      aio_comp, journal::EventEntry{journal::AioFlushEvent{}}, {}, 0, 0, false);
+      journal::EventEntry{journal::AioFlushEvent{}}, object_requests, 0, 0,
+      false);
   }
 
   void save_commit_context(Context *ctx) {
@@ -848,21 +852,21 @@ TEST_F(TestMockJournal, EventCommitError) {
     close_journal(mock_journal, mock_journaler);
   };
 
-  AioCompletion *comp = new AioCompletion();
-  comp->get();
+  C_SaferCond object_request_ctx;
+  AioObjectRemove *object_request = new AioObjectRemove(
+    ictx, "oid", 0, {}, &object_request_ctx);
 
   ::journal::MockFuture mock_future;
   Context *on_journal_safe;
   expect_append_journaler(mock_journaler);
   expect_wait_future(mock_future, &on_journal_safe);
-  ASSERT_EQ(1U, when_append_io_event(mock_image_ctx, mock_journal, comp));
+  ASSERT_EQ(1U, when_append_io_event(mock_image_ctx, mock_journal,
+                                     object_request));
 
   // commit the event in the journal w/o waiting writeback
   expect_future_committed(mock_journaler);
   on_journal_safe->complete(-EINVAL);
-  ASSERT_EQ(0, comp->wait_for_complete());
-  ASSERT_EQ(-EINVAL, comp->get_return_value());
-  comp->put();
+  ASSERT_EQ(-EINVAL, object_request_ctx.wait());
 
   // cache should receive the error after attempting writeback
   expect_future_is_valid(mock_future);
@@ -885,14 +889,16 @@ TEST_F(TestMockJournal, EventCommitErrorWithPendingWriteback) {
     close_journal(mock_journal, mock_journaler);
   };
 
-  AioCompletion *comp = new AioCompletion();
-  comp->get();
+  C_SaferCond object_request_ctx;
+  AioObjectRemove *object_request = new AioObjectRemove(
+    ictx, "oid", 0, {}, &object_request_ctx);
 
   ::journal::MockFuture mock_future;
   Context *on_journal_safe;
   expect_append_journaler(mock_journaler);
   expect_wait_future(mock_future, &on_journal_safe);
-  ASSERT_EQ(1U, when_append_io_event(mock_image_ctx, mock_journal, comp));
+  ASSERT_EQ(1U, when_append_io_event(mock_image_ctx, mock_journal,
+                                     object_request));
 
   expect_future_is_valid(mock_future);
   C_SaferCond flush_ctx;
@@ -901,9 +907,7 @@ TEST_F(TestMockJournal, EventCommitErrorWithPendingWriteback) {
   // commit the event in the journal w/ waiting cache writeback
   expect_future_committed(mock_journaler);
   on_journal_safe->complete(-EINVAL);
-  ASSERT_EQ(0, comp->wait_for_complete());
-  ASSERT_EQ(-EINVAL, comp->get_return_value());
-  comp->put();
+  ASSERT_EQ(-EINVAL, object_request_ctx.wait());
 
   // cache should receive the error if waiting
   ASSERT_EQ(-EINVAL, flush_ctx.wait());
