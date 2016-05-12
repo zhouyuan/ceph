@@ -83,7 +83,6 @@ namespace librbd {
     bool m_sparse;
     int m_op_flags;
     ceph::bufferlist m_read_data;
-    AioCompletion *m_parent_completion;
 
     /**
      * Reads go through the following state machine to deal with

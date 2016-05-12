@@ -102,9 +102,7 @@ namespace librbd {
     : AioObjectRequest(ictx, oid, objectno, offset, len, snap_id, completion,
                        false),
       m_buffer_extents(be), m_tried_parent(false), m_sparse(sparse),
-      m_op_flags(op_flags), m_parent_completion(NULL),
-      m_state(LIBRBD_AIO_READ_FLAT) {
-
+      m_op_flags(op_flags), m_state(LIBRBD_AIO_READ_FLAT) {
     guard_read();
   }
 
@@ -167,14 +165,6 @@ namespace librbd {
             read_from_parent(parent_extents);
             finished = false;
           }
-        }
-
-        if (m_tried_parent) {
-          // release reference to the parent read completion.  this request
-          // might be completed after unblock is invoked.
-          AioCompletion *parent_completion = m_parent_completion;
-          parent_completion->unblock();
-          parent_completion->put();
         }
       }
       break;
@@ -268,21 +258,15 @@ namespace librbd {
 
   void AioObjectRead::read_from_parent(const vector<pair<uint64_t,uint64_t> >& parent_extents)
   {
-    assert(!m_parent_completion);
-    m_parent_completion = AioCompletion::create<AioObjectRequest>(this);
-
-    // prevent the parent image from being deleted while this
-    // request is still in-progress
-    m_parent_completion->get();
-    m_parent_completion->block();
+    AioCompletion *parent_completion = AioCompletion::create<AioObjectRequest>(this);
 
     ldout(m_ictx->cct, 20) << "read_from_parent this = " << this
-			   << " parent completion " << m_parent_completion
+			   << " parent completion " << parent_completion
 			   << " extents " << parent_extents
 			   << dendl;
     RWLock::RLocker owner_locker(m_ictx->parent->owner_lock);
-    AioImageRequest<>::aio_read(m_ictx->parent, m_parent_completion,
-                                parent_extents, NULL, &m_read_data, 0);
+    AioImageRequest<>::aio_read(m_ictx->parent, parent_completion,
+                                parent_extents, nullptr, &m_read_data, 0);
   }
 
   /** write **/
