@@ -290,6 +290,9 @@ public:
                                 MockJournal &mock_journal,
                                 AioCompletion *aio_comp = nullptr) {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
+    if (aio_comp != nullptr) {
+      aio_comp->init_time(mock_image_ctx.image_ctx, librbd::AIO_TYPE_NONE);
+    }
     return mock_journal.append_io_event(
       aio_comp, journal::EventEntry{journal::AioFlushEvent{}}, {}, 0, 0, false);
   }

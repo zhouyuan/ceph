@@ -1469,7 +1469,7 @@ void Journal<I>::handle_io_event_safe(int r, uint64_t tid) {
 
   if (r < 0) {
     // don't send aio requests if the journal fails -- bubble error up
-    aio_comp->fail(cct, r);
+    aio_comp->fail(r);
   } else {
     // send any waiting aio requests now that journal entry is safe
     RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
