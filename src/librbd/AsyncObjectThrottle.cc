@@ -27,7 +27,6 @@ AsyncObjectThrottle<T>::AsyncObjectThrottle(
 
 template <typename T>
 void AsyncObjectThrottle<T>::start_ops(uint64_t max_concurrent) {
-  assert(m_image_ctx.owner_lock.is_locked());
   bool complete;
   {
     Mutex::Locker l(m_lock);
@@ -50,7 +49,6 @@ template <typename T>
 void AsyncObjectThrottle<T>::finish_op(int r) {
   bool complete;
   {
-    RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
     Mutex::Locker locker(m_lock);
     --m_current_ops;
     if (r < 0 && r != -ENOENT && m_ret == 0) {

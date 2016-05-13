@@ -84,7 +84,6 @@ namespace librbd {
   }
 
   static inline bool is_copy_on_read(ImageCtx *ictx, librados::snap_t snap_id) {
-    assert(ictx->owner_lock.is_locked());
     assert(ictx->snap_lock.is_locked());
     return (ictx->clone_copy_on_read &&
             !ictx->read_only && snap_id == CEPH_NOSNAP &&
@@ -133,7 +132,6 @@ namespace librbd {
       // This is the step to read from parent
       if (!m_tried_parent && r == -ENOENT) {
         {
-          RWLock::RLocker owner_locker(m_ictx->owner_lock);
           RWLock::RLocker snap_locker(m_ictx->snap_lock);
           RWLock::RLocker parent_locker(m_ictx->parent_lock);
           if (m_ictx->parent == NULL) {
@@ -234,7 +232,6 @@ namespace librbd {
   void AioObjectRead::send_copyup()
   {
     {
-      RWLock::RLocker owner_locker(m_ictx->owner_lock);
       RWLock::RLocker snap_locker(m_ictx->snap_lock);
       RWLock::RLocker parent_locker(m_ictx->parent_lock);
       if (!compute_parent_extents() ||
@@ -264,7 +261,6 @@ namespace librbd {
 			   << " parent completion " << parent_completion
 			   << " extents " << parent_extents
 			   << dendl;
-    RWLock::RLocker owner_locker(m_ictx->parent->owner_lock);
     AioImageRequest<>::aio_read(m_ictx->parent, parent_completion,
                                 parent_extents, nullptr, &m_read_data, 0);
   }
@@ -368,7 +364,6 @@ namespace librbd {
   }
 
   void AbstractAioObjectWrite::send() {
-    assert(m_ictx->owner_lock.is_locked());
     ldout(m_ictx->cct, 20) << "send " << get_write_type() << " " << this <<" "
                            << m_oid << " " << m_object_off << "~"
                            << m_object_len << dendl;
@@ -376,8 +371,6 @@ namespace librbd {
   }
 
   void AbstractAioObjectWrite::send_pre() {
-    assert(m_ictx->owner_lock.is_locked());
-
     bool write = false;
     {
       RWLock::RLocker snap_lock(m_ictx->snap_lock);
@@ -418,7 +411,6 @@ namespace librbd {
   }
 
   bool AbstractAioObjectWrite::send_post() {
-    RWLock::RLocker owner_locker(m_ictx->owner_lock);
     RWLock::RLocker snap_locker(m_ictx->snap_lock);
     if (m_ictx->object_map == nullptr || !post_object_map_update()) {
       return true;

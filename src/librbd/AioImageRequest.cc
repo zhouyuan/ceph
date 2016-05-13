@@ -122,8 +122,6 @@ void AioImageRequest<I>::aio_flush(I *ictx, AioCompletion *c) {
 
 template <typename I>
 void AioImageRequest<I>::send() {
-  assert(m_image_ctx.owner_lock.is_locked());
-
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << get_request_type() << ": ictx=" << &m_image_ctx << ", "
                  << "completion=" << m_aio_comp <<  dendl;
