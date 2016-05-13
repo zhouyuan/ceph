@@ -244,6 +244,25 @@ void C_AioRead::finish(int r)
   C_AioRequest::finish(r);
 }
 
+void C_ImageCacheRead::finish(int r) {
+  CephContext *cct = m_completion->ictx->cct;
+  ldout(cct, 10) << "C_ImageCacheRead::finish() " << this << ": r=" << r
+                 << dendl;
+  if (r >= 0) {
+    size_t length = 0;
+    for (auto &image_extent : m_image_extents) {
+      length += image_extent.second;
+    }
+    assert(length == m_bl.length());
+
+    m_completion->lock.Lock();
+    m_completion->destriper.add_partial_result(cct, m_bl, m_image_extents);
+    m_completion->lock.Unlock();
+    r = length;
+  }
+  C_AioRequest::finish(r);
+}
+
 void C_CacheRead::complete(int r) {
   if (!m_enqueued) {
     // cache_lock creates a lock ordering issue -- so re-execute this context

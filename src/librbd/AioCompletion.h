@@ -224,6 +224,26 @@ private:
   AioObjectRead *m_req;
 };
 
+class C_ImageCacheRead : public C_AioRequest {
+public:
+  typedef std::vector<std::pair<uint64_t,uint64_t> > Extents;
+
+  C_ImageCacheRead(AioCompletion *completion, const Extents &image_extents)
+    : C_AioRequest(completion), m_image_extents(image_extents) {
+  }
+
+  inline bufferlist &get_data() {
+    return m_bl;
+  }
+
+protected:
+  virtual void finish(int r);
+
+private:
+  bufferlist m_bl;
+  Extents m_image_extents;
+};
+
 class C_CacheRead : public Context {
 public:
   explicit C_CacheRead(ImageCtx *ictx, AioObjectRead *req)
