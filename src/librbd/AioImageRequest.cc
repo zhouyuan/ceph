@@ -10,6 +10,7 @@
 #include "librbd/ImageWatcher.h"
 #include "librbd/internal.h"
 #include "librbd/Journal.h"
+#include "librbd/cache/ImageCache.h"
 #include "librbd/journal/Types.h"
 #include "include/rados/librados.hpp"
 #include "osdc/Striper.h"
@@ -147,8 +148,7 @@ void AioImageRequest<I>::send() {
     return;
   }
 
-  // TODO
-  if (m_bypass_image_cache || true) {
+  if (m_bypass_image_cache || m_image_ctx.image_cache == nullptr) {
     send_request();
   } else {
     send_image_cache_request();
@@ -249,7 +249,14 @@ void AioImageRead::send_request() {
 }
 
 void AioImageRead::send_image_cache_request() {
-  // TODO
+  assert(m_image_ctx.image_cache != nullptr);
+
+  m_aio_comp->set_request_count(1);
+  C_ImageCacheRead *req_comp = new C_ImageCacheRead(m_aio_comp,
+                                                    m_image_extents);
+  m_image_ctx.image_cache->aio_read(std::move(m_image_extents),
+                                    &req_comp->get_data(), m_op_flags,
+                                    req_comp);
 }
 
 int AbstractAioImageWrite::clip_request() {
@@ -362,7 +369,12 @@ uint64_t AioImageWrite::append_journal_event(
 }
 
 void AioImageWrite::send_image_cache_request() {
-  // TODO
+  assert(m_image_ctx.image_cache != nullptr);
+
+  m_aio_comp->set_request_count(1);
+  C_AioRequest *req_comp = new C_AioRequest(m_aio_comp);
+  m_image_ctx.image_cache->aio_write(m_off, std::move(m_bl), m_op_flags,
+                                     req_comp);
 }
 
 void AioImageWrite::send_cache_requests(const ObjectExtents &object_extents,
@@ -428,7 +440,11 @@ uint32_t AioImageDiscard::get_cache_request_count(bool journaling) const {
 }
 
 void AioImageDiscard::send_image_cache_request() {
-  // TODO
+  assert(m_image_ctx.image_cache != nullptr);
+
+  m_aio_comp->set_request_count(1);
+  C_AioRequest *req_comp = new C_AioRequest(m_aio_comp);
+  m_image_ctx.image_cache->aio_discard(m_off, m_len, req_comp);
 }
 
 void AioImageDiscard::send_cache_requests(const ObjectExtents &object_extents,
@@ -509,7 +525,11 @@ void AioImageFlush::send_request() {
 }
 
 void AioImageFlush::send_image_cache_request() {
-  // TODO
+  assert(m_image_ctx.image_cache != nullptr);
+
+  m_aio_comp->set_request_count(1);
+  C_AioRequest *req_comp = new C_AioRequest(m_aio_comp);
+  m_image_ctx.image_cache->aio_flush(req_comp);
 }
 
 } // namespace librbd

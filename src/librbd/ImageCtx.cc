@@ -14,6 +14,7 @@
 #include "librbd/AioCompletion.h"
 #include "librbd/AsyncOperation.h"
 #include "librbd/AsyncRequest.h"
+#include "librbd/cache/PassthroughImageCache.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/exclusive_lock/StandardPolicy.h"
 #include "librbd/internal.h"
@@ -82,8 +83,14 @@ struct C_ShutDownCache : public Context {
     : image_ctx(_image_ctx), on_finish(_on_finish) {
   }
   virtual void finish(int r) {
-    image_ctx->object_cacher->stop();
-    on_finish->complete(r);
+    if (image_ctx->object_cacher != nullptr) {
+      image_ctx->object_cacher->stop();
+    }
+
+    // TODO: don't drop the previous result
+    if (image_ctx->image_cache != nullptr) {
+      image_ctx->image_cache->shut_down(on_finish);
+    }
   }
 };
 
@@ -104,17 +111,24 @@ struct C_InvalidateCache : public Context {
 
     if (r == -EBLACKLISTED) {
       lderr(cct) << "Blacklisted during flush!  Purging cache..." << dendl;
-      image_ctx->object_cacher->purge_set(image_ctx->object_set);
+      if (image_ctx->object_cacher != nullptr) {
+        image_ctx->object_cacher->purge_set(image_ctx->object_set);
+      }
     } else if (r != 0 && purge_on_error) {
       lderr(cct) << "invalidate cache encountered error "
                  << cpp_strerror(r) << " !Purging cache..." << dendl;
-      image_ctx->object_cacher->purge_set(image_ctx->object_set);
+      if (image_ctx->object_cacher != nullptr) {
+        image_ctx->object_cacher->purge_set(image_ctx->object_set);
+      }
     } else if (r != 0) {
       lderr(cct) << "flush_cache returned " << r << dendl;
     }
 
-    loff_t unclean = image_ctx->object_cacher->release_set(
-      image_ctx->object_set);
+    loff_t unclean = 0;
+    if (image_ctx->object_cacher != nullptr) {
+      unclean = image_ctx->object_cacher->release_set(
+        image_ctx->object_set);
+    }
     if (unclean == 0) {
       r = 0;
     } else {
@@ -207,6 +221,10 @@ struct C_InvalidateCache : public Context {
       delete object_cacher;
       object_cacher = NULL;
     }
+    if (image_cache) {
+      delete image_cache;
+      image_cache = nullptr;
+    }
     if (writeback_handler) {
       delete writeback_handler;
       writeback_handler = NULL;
@@ -248,6 +266,18 @@ struct C_InvalidateCache : public Context {
     }
 
     perf_start(pname);
+
+    {
+      // TODO: dummy passthrough image cache always enabled
+      image_cache = new cache::PassthroughImageCache<>(*this);
+
+      // TODO: integrate into open image state machine
+      C_SaferCond ctx;
+      image_cache->init(&ctx);
+
+      int r = ctx.wait();
+      assert(r == 0);
+    }
 
     if (cache) {
       Mutex::Locker l(cache_lock);
@@ -733,34 +763,48 @@ struct C_InvalidateCache : public Context {
   }
 
   void ImageCtx::flush_cache(Context *onfinish) {
+    if (object_cacher == nullptr) {
+      onfinish = new FunctionContext([this, onfinish](int r) {
+          Mutex::Locker cacher_locker(cache_lock);
+          onfinish->complete(r);
+        });
+      op_work_queue->queue(onfinish);
+      return;
+    }
+
     cache_lock.Lock();
     object_cacher->flush_set(object_set, onfinish);
     cache_lock.Unlock();
   }
 
   void ImageCtx::shut_down_cache(Context *on_finish) {
-    if (object_cacher == NULL) {
+    if (image_cache == nullptr && object_cacher == nullptr) {
       on_finish->complete(0);
       return;
     }
 
-    cache_lock.Lock();
-    object_cacher->release_set(object_set);
-    cache_lock.Unlock();
+    if (object_cacher != nullptr) {
+      cache_lock.Lock();
+      object_cacher->release_set(object_set);
+      cache_lock.Unlock();
+    }
 
+    // TODO need to invalidate persistent client cache if VM migrates
     C_ShutDownCache *shut_down = new C_ShutDownCache(this, on_finish);
     flush_cache(new C_InvalidateCache(this, true, false, shut_down));
   }
 
   int ImageCtx::invalidate_cache(bool purge_on_error) {
     flush_async_operations();
-    if (object_cacher == NULL) {
+    if (image_cache == nullptr && object_cacher == nullptr) {
       return 0;
     }
 
-    cache_lock.Lock();
-    object_cacher->release_set(object_set);
-    cache_lock.Unlock();
+    if (object_cacher != nullptr) {
+      cache_lock.Lock();
+      object_cacher->release_set(object_set);
+      cache_lock.Unlock();
+    }
 
     C_SaferCond ctx;
     flush_cache(new C_InvalidateCache(this, purge_on_error, true, &ctx));
@@ -770,14 +814,16 @@ struct C_InvalidateCache : public Context {
   }
 
   void ImageCtx::invalidate_cache(Context *on_finish) {
-    if (object_cacher == NULL) {
+    if (image_cache == nullptr && object_cacher == nullptr) {
       op_work_queue->queue(on_finish, 0);
       return;
     }
 
-    cache_lock.Lock();
-    object_cacher->release_set(object_set);
-    cache_lock.Unlock();
+    if (object_cacher != nullptr) {
+      cache_lock.Lock();
+      object_cacher->release_set(object_set);
+      cache_lock.Unlock();
+    }
 
     flush_cache(new C_InvalidateCache(this, false, false, on_finish));
   }
@@ -846,7 +892,8 @@ struct C_InvalidateCache : public Context {
     // ensure no locks are held when flush is complete
     on_safe = util::create_async_context_callback(*this, on_safe);
 
-    if (object_cacher != NULL) {
+    // TODO user vs system flush
+    if (image_cache != nullptr || object_cacher != nullptr) {
       // flush cache after completing all in-flight AIO ops
       on_safe = new C_FlushCache(this, on_safe);
     }
