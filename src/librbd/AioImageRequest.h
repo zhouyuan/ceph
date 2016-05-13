@@ -32,6 +32,8 @@ public:
                        size_t len, char *buf, bufferlist *pbl, int op_flags);
   static void aio_write(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
                         size_t len, const char *buf, int op_flags);
+  static void aio_write(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
+                        bufferlist &&bl, int op_flags);
   static void aio_discard(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
                           uint64_t len);
   static void aio_flush(ImageCtxT *ictx, AioCompletion *c);
@@ -137,8 +139,14 @@ class AioImageWrite : public AbstractAioImageWrite {
 public:
   AioImageWrite(ImageCtx &image_ctx, AioCompletion *aio_comp, uint64_t off,
                 size_t len, const char *buf, int op_flags)
-    : AbstractAioImageWrite(image_ctx, aio_comp, off, len), m_buf(buf),
+    : AbstractAioImageWrite(image_ctx, aio_comp, off, len),
       m_op_flags(op_flags) {
+    m_bl.append(buf, len);
+  }
+  AioImageWrite(ImageCtx &image_ctx, AioCompletion *aio_comp, uint64_t off,
+                bufferlist &&bl, int op_flags)
+    : AbstractAioImageWrite(image_ctx, aio_comp, off, bl.length()),
+      m_bl(std::move(bl)), m_op_flags(op_flags) {
   }
 
 protected:
@@ -162,7 +170,7 @@ protected:
                                         bool synchronous);
   virtual void update_stats(size_t length);
 private:
-  const char *m_buf;
+  bufferlist m_bl;
   int m_op_flags;
 };
 

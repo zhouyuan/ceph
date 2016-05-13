@@ -78,30 +78,36 @@ struct C_FlushJournalCommit : public Context {
 } // anonymous namespace
 
 template <typename I>
-void AioImageRequest<I>::aio_read(
-    I *ictx, AioCompletion *c,
-    const std::vector<std::pair<uint64_t,uint64_t> > &extents,
-    char *buf, bufferlist *pbl, int op_flags) {
+void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c,
+                                  const Extents &extents, char *buf,
+                                  bufferlist *pbl, int op_flags) {
   c->init_time(ictx, librbd::AIO_TYPE_READ);
   AioImageRead req(*ictx, c, extents, buf, pbl, op_flags);
   req.send();
 }
 
 template <typename I>
-void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c,
-                                  uint64_t off, size_t len, char *buf,
-                                  bufferlist *pbl, int op_flags) {
+void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c, uint64_t off,
+                                  size_t len, char *buf, bufferlist *pbl,
+                                  int op_flags) {
   c->init_time(ictx, librbd::AIO_TYPE_READ);
   AioImageRead req(*ictx, c, off, len, buf, pbl, op_flags);
   req.send();
 }
 
 template <typename I>
-void AioImageRequest<I>::aio_write(I *ictx, AioCompletion *c,
-                                   uint64_t off, size_t len, const char *buf,
-                                   int op_flags) {
+void AioImageRequest<I>::aio_write(I *ictx, AioCompletion *c, uint64_t off,
+                                   size_t len, const char *buf, int op_flags) {
   c->init_time(ictx, librbd::AIO_TYPE_WRITE);
   AioImageWrite req(*ictx, c, off, len, buf, op_flags);
+  req.send();
+}
+
+template <typename I>
+void AioImageRequest<I>::aio_write(I *ictx, AioCompletion *c, uint64_t off,
+                                   bufferlist &&bl, int op_flags) {
+  c->init_time(ictx, librbd::AIO_TYPE_WRITE);
+  AioImageWrite req(*ictx, c, off, std::move(bl), op_flags);
   req.send();
 }
 
@@ -309,16 +315,15 @@ void AioImageWrite::assemble_extent(const ObjectExtent &object_extent,
                                     bufferlist *bl) {
   for (Extents::const_iterator q = object_extent.buffer_extents.begin();
        q != object_extent.buffer_extents.end(); ++q) {
-    bl->append(m_buf + q->first, q->second);;
+    bufferlist sub_bl;
+    sub_bl.substr_of(m_bl, q->first, q->second);
+    bl->claim_append(sub_bl);
   }
 }
 
 uint64_t AioImageWrite::append_journal_event(
     const AioObjectRequests &requests, bool synchronous) {
-  bufferlist bl;
-  bl.append(m_buf, m_len);
-
-  uint64_t tid = m_image_ctx.journal->append_write_event(m_off, m_len, bl,
+  uint64_t tid = m_image_ctx.journal->append_write_event(m_off, m_len, m_bl,
                                                          requests, synchronous);
   if (m_image_ctx.object_cacher == NULL) {
     m_aio_comp->associate_journal_event(tid);
