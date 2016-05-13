@@ -27,14 +27,15 @@ public:
 
   static void aio_read(ImageCtxT *ictx, AioCompletion *c,
                        Extents &&image_extents, char *buf, bufferlist *pbl,
-                       int op_flags);
+                       int op_flags, bool bypass_image_cache);
   static void aio_write(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
                         size_t len, const char *buf, int op_flags);
   static void aio_write(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
-                        bufferlist &&bl, int op_flags);
+                        bufferlist &&bl, int op_flags, bool bypass_image_cache);
   static void aio_discard(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
-                          uint64_t len);
-  static void aio_flush(ImageCtxT *ictx, AioCompletion *c);
+                          uint64_t len, bool bypass_image_cache);
+  static void aio_flush(ImageCtxT *ictx, AioCompletion *c,
+                        bool bypass_image_cache);
 
   virtual bool is_write_op() const {
     return false;
@@ -52,11 +53,17 @@ protected:
 
   ImageCtxT &m_image_ctx;
   AioCompletion *m_aio_comp;
+  bool m_bypass_image_cache = false;
 
   AioImageRequest(ImageCtxT &image_ctx, AioCompletion *aio_comp)
     : m_image_ctx(image_ctx), m_aio_comp(aio_comp) {}
 
+  void set_bypass_image_cache() {
+    m_bypass_image_cache = true;
+  }
+
   virtual void send_request() = 0;
+  virtual void send_image_cache_request() = 0;
   virtual const char *get_request_type() const = 0;
 };
 
@@ -72,6 +79,9 @@ public:
 
 protected:
   virtual void send_request();
+
+  virtual void send_image_cache_request();
+
   virtual const char *get_request_type() const {
     return "aio_read";
   }
@@ -109,6 +119,7 @@ protected:
   virtual uint32_t get_cache_request_count(bool journaling) const {
     return 0;
   }
+
   virtual void send_cache_requests(const ObjectExtents &object_extents,
                                    uint64_t journal_tid) = 0;
 
@@ -148,6 +159,8 @@ protected:
 
   void assemble_extent(const ObjectExtent &object_extent, bufferlist *bl);
 
+  virtual void send_image_cache_request();
+
   virtual void send_cache_requests(const ObjectExtents &object_extents,
                                    uint64_t journal_tid);
 
@@ -179,6 +192,9 @@ protected:
   }
 
   virtual uint32_t get_cache_request_count(bool journaling) const override;
+
+  virtual void send_image_cache_request();
+
   virtual void send_cache_requests(const ObjectExtents &object_extents,
                                    uint64_t journal_tid);
 
@@ -203,6 +219,7 @@ public:
 
 protected:
   virtual void send_request();
+  virtual void send_image_cache_request();
   virtual const char *get_request_type() const {
     return "aio_flush";
   }

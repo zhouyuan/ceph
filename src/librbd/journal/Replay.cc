@@ -198,7 +198,7 @@ void Replay<I>::shut_down(bool cancel_ops, Context *on_finish) {
   // execute the following outside of lock scope
   if (flush_comp != nullptr) {
     RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
-    AioImageRequest<I>::aio_flush(&m_image_ctx, flush_comp);
+    AioImageRequest<I>::aio_flush(&m_image_ctx, flush_comp, true);
   }
   for (auto op_tid : cancel_op_tids) {
     handle_op_complete(op_tid, -ERESTART);
@@ -218,7 +218,7 @@ void Replay<I>::flush(Context *on_finish) {
   }
 
   RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
-  AioImageRequest<I>::aio_flush(&m_image_ctx, aio_comp);
+  AioImageRequest<I>::aio_flush(&m_image_ctx, aio_comp, true);
 }
 
 template <typename I>
@@ -270,13 +270,13 @@ void Replay<I>::handle_event(const journal::AioDiscardEvent &event,
   AioCompletion *aio_comp = create_aio_modify_completion(on_ready, on_safe,
                                                          &flush_required);
   AioImageRequest<I>::aio_discard(&m_image_ctx, aio_comp, event.offset,
-                                  event.length);
+                                  event.length, true);
   if (flush_required) {
     m_lock.Lock();
     AioCompletion *flush_comp = create_aio_flush_completion(nullptr);
     m_lock.Unlock();
 
-    AioImageRequest<I>::aio_flush(&m_image_ctx, flush_comp);
+    AioImageRequest<I>::aio_flush(&m_image_ctx, flush_comp, true);
   }
 }
 
@@ -291,13 +291,13 @@ void Replay<I>::handle_event(const journal::AioWriteEvent &event,
   AioCompletion *aio_comp = create_aio_modify_completion(on_ready, on_safe,
                                                          &flush_required);
   AioImageRequest<I>::aio_write(&m_image_ctx, aio_comp, event.offset,
-                                event.length, data.c_str(), 0);
+                                std::move(data), 0, true);
   if (flush_required) {
     m_lock.Lock();
     AioCompletion *flush_comp = create_aio_flush_completion(nullptr);
     m_lock.Unlock();
 
-    AioImageRequest<I>::aio_flush(&m_image_ctx, flush_comp);
+    AioImageRequest<I>::aio_flush(&m_image_ctx, flush_comp, true);
   }
 }
 
@@ -312,7 +312,7 @@ void Replay<I>::handle_event(const journal::AioFlushEvent &event,
     Mutex::Locker locker(m_lock);
     aio_comp = create_aio_flush_completion(on_safe);
   }
-  AioImageRequest<I>::aio_flush(&m_image_ctx, aio_comp);
+  AioImageRequest<I>::aio_flush(&m_image_ctx, aio_comp, true);
 
   on_ready->complete(0);
 }

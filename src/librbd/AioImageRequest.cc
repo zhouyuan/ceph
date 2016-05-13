@@ -80,9 +80,13 @@ struct C_FlushJournalCommit : public Context {
 template <typename I>
 void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c,
                                   Extents&& image_extents, char *buf,
-                                  bufferlist *pbl, int op_flags) {
+                                  bufferlist *pbl, int op_flags,
+                                  bool bypass_image_cache) {
   c->init_time(ictx, librbd::AIO_TYPE_READ);
   AioImageRead req(*ictx, c, std::move(image_extents), buf, pbl, op_flags);
+  if (bypass_image_cache) {
+    req.set_bypass_image_cache();
+  }
   req.send();
 }
 
@@ -96,35 +100,53 @@ void AioImageRequest<I>::aio_write(I *ictx, AioCompletion *c, uint64_t off,
 
 template <typename I>
 void AioImageRequest<I>::aio_write(I *ictx, AioCompletion *c, uint64_t off,
-                                   bufferlist &&bl, int op_flags) {
+                                   bufferlist &&bl, int op_flags,
+                                   bool bypass_image_cache) {
   c->init_time(ictx, librbd::AIO_TYPE_WRITE);
   AioImageWrite req(*ictx, c, off, std::move(bl), op_flags);
+  if (bypass_image_cache) {
+    req.set_bypass_image_cache();
+  }
   req.send();
 }
 
 template <typename I>
-void AioImageRequest<I>::aio_discard(I *ictx, AioCompletion *c,
-                                     uint64_t off, uint64_t len) {
+void AioImageRequest<I>::aio_discard(I *ictx, AioCompletion *c, uint64_t off,
+                                     uint64_t len, bool bypass_image_cache) {
   c->init_time(ictx, librbd::AIO_TYPE_DISCARD);
   AioImageDiscard req(*ictx, c, off, len);
+  if (bypass_image_cache) {
+    req.set_bypass_image_cache();
+  }
   req.send();
 }
 
 template <typename I>
-void AioImageRequest<I>::aio_flush(I *ictx, AioCompletion *c) {
+void AioImageRequest<I>::aio_flush(I *ictx, AioCompletion *c,
+                                   bool bypass_image_cache) {
   c->init_time(ictx, librbd::AIO_TYPE_FLUSH);
   AioImageFlush req(*ictx, c);
+  if (bypass_image_cache) {
+    req.set_bypass_image_cache();
+  }
   req.send();
 }
 
 template <typename I>
 void AioImageRequest<I>::send() {
   CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << get_request_type() << ": ictx=" << &m_image_ctx << ", "
+  ldout(cct, 20) << get_request_type() << ": "
+                 << "ictx=" << &m_image_ctx << ", "
                  << "completion=" << m_aio_comp <<  dendl;
 
   m_aio_comp->get();
-  send_request();
+
+  // TODO
+  if (m_bypass_image_cache || true) {
+    send_request();
+  } else {
+    send_image_cache_request();
+  }
 }
 
 template <typename I>
@@ -213,6 +235,10 @@ void AioImageRead::send_request() {
 
   m_image_ctx.perfcounter->inc(l_librbd_rd);
   m_image_ctx.perfcounter->inc(l_librbd_rd_bytes, buffer_ofs);
+}
+
+void AioImageRead::send_image_cache_request() {
+  // TODO
 }
 
 void AbstractAioImageWrite::send_request() {
@@ -323,6 +349,10 @@ uint64_t AioImageWrite::append_journal_event(
   return tid;
 }
 
+void AioImageWrite::send_image_cache_request() {
+  // TODO
+}
+
 void AioImageWrite::send_cache_requests(const ObjectExtents &object_extents,
                                         uint64_t journal_tid) {
   for (ObjectExtents::const_iterator p = object_extents.begin();
@@ -383,6 +413,10 @@ uint64_t AioImageDiscard::append_journal_event(
 uint32_t AioImageDiscard::get_cache_request_count(bool journaling) const {
   // extra completion request is required for tracking journal commit
   return (m_image_ctx.object_cacher != nullptr && journaling ? 1 : 0);
+}
+
+void AioImageDiscard::send_image_cache_request() {
+  // TODO
 }
 
 void AioImageDiscard::send_cache_requests(const ObjectExtents &object_extents,
@@ -460,6 +494,10 @@ void AioImageFlush::send_request() {
   m_aio_comp->put();
 
   m_image_ctx.perfcounter->inc(l_librbd_aio_flush);
+}
+
+void AioImageFlush::send_image_cache_request() {
+  // TODO
 }
 
 } // namespace librbd

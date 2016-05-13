@@ -4,6 +4,7 @@
 #include "ImageWriteback.h"
 #include "include/buffer.h"
 #include "common/dout.h"
+#include "librbd/AioCompletion.h"
 #include "librbd/AioImageRequest.h"
 #include "librbd/ImageCtx.h"
 
@@ -25,7 +26,9 @@ void ImageWriteback<I>::aio_read(Extents &&image_extents, bufferlist *bl,
   ldout(cct, 20) << "image_extents=" << image_extents << ", "
                  << "on_finish=" << on_finish << dendl;
 
-  // TODO
+  AioCompletion *aio_comp = AioCompletion::create(on_finish);
+  AioImageRequest<I>::aio_read(&m_image_ctx, aio_comp, std::move(image_extents),
+                               nullptr, bl, fadvise_flags, true);
 }
 
 template <typename I>
@@ -36,7 +39,9 @@ void ImageWriteback<I>::aio_write(uint64_t offset, ceph::bufferlist&& bl,
                  << "length=" << bl.length() << ", "
                  << "on_finish=" << on_finish << dendl;
 
-  // TODO
+  AioCompletion *aio_comp = AioCompletion::create(on_finish);
+  AioImageRequest<I>::aio_write(&m_image_ctx, aio_comp, offset, std::move(bl),
+                                fadvise_flags, true);
 }
 
 template <typename I>
@@ -47,7 +52,8 @@ void ImageWriteback<I>::aio_discard(uint64_t offset, uint64_t length,
                  << "length=" << length << ", "
                 << "on_finish=" << on_finish << dendl;
 
-  // TODO
+  AioCompletion *aio_comp = AioCompletion::create(on_finish);
+  AioImageRequest<I>::aio_discard(&m_image_ctx, aio_comp, offset, length, true);
 }
 
 template <typename I>
@@ -55,7 +61,8 @@ void ImageWriteback<I>::aio_flush(Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "on_finish=" << on_finish << dendl;
 
-  // TODO
+  AioCompletion *aio_comp = AioCompletion::create(on_finish);
+  AioImageRequest<I>::aio_flush(&m_image_ctx, aio_comp, true);
 }
 
 } // namespace cache

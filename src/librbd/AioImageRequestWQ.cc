@@ -128,7 +128,7 @@ void AioImageRequestWQ::aio_read(AioCompletion *c, uint64_t off, uint64_t len,
     m_image_ctx.owner_lock.put_read();
 
     AioImageRequest<>::aio_read(&m_image_ctx, c, {{off, len}}, buf, pbl,
-                                op_flags);
+                                op_flags, false);
     finish_in_flight_op();
   }
 }
@@ -185,7 +185,7 @@ void AioImageRequestWQ::aio_discard(AioCompletion *c, uint64_t off,
   } else {
     m_image_ctx.owner_lock.put_read();
 
-    AioImageRequest<>::aio_discard(&m_image_ctx, c, off, len);
+    AioImageRequest<>::aio_discard(&m_image_ctx, c, off, len, false);
     finish_in_flight_op();
   }
 }
@@ -211,7 +211,7 @@ void AioImageRequestWQ::aio_flush(AioCompletion *c, bool native_async) {
   } else {
     m_image_ctx.owner_lock.put_read();
 
-    AioImageRequest<>::aio_flush(&m_image_ctx, c);
+    AioImageRequest<>::aio_flush(&m_image_ctx, c, false);
     finish_in_flight_op();
   }
 }

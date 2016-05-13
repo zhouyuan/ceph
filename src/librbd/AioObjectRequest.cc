@@ -263,7 +263,7 @@ namespace librbd {
 			   << dendl;
     AioImageRequest<>::aio_read(m_ictx->parent, parent_completion,
                                 std::move(parent_extents), nullptr,
-                                &m_read_data, 0);
+                                &m_read_data, 0, true);
   }
 
   /** write **/

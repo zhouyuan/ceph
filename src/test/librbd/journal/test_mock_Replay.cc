@@ -26,25 +26,29 @@ template <>
 struct AioImageRequest<MockReplayImageCtx> {
   static AioImageRequest *s_instance;
 
-  MOCK_METHOD5(aio_write, void(AioCompletion *c, uint64_t off, size_t len,
-                               const char *buf, int op_flags));
-  static void aio_write(MockReplayImageCtx *ictx, AioCompletion *c, uint64_t off,
-                        size_t len, const char *buf, int op_flags) {
+  MOCK_METHOD5(aio_write, void(AioCompletion *c, uint64_t off,
+                               const bufferlist &bl, int op_flags,
+                               bool bypass_image_cache));
+  static void aio_write(MockReplayImageCtx *ictx, AioCompletion *c,
+                        uint64_t off, bufferlist &&bl, int op_flags,
+                        bool bypass_image_cache) {
     assert(s_instance != nullptr);
-    s_instance->aio_write(c, off, len, buf, op_flags);
+    s_instance->aio_write(c, off, bl, op_flags, bypass_image_cache);
   }
 
-  MOCK_METHOD3(aio_discard, void(AioCompletion *c, uint64_t off, uint64_t len));
+  MOCK_METHOD4(aio_discard, void(AioCompletion *c, uint64_t off, uint64_t len,
+                                 bool bypass_image_cache));
   static void aio_discard(MockReplayImageCtx *ictx, AioCompletion *c, uint64_t off,
-                          uint64_t len) {
+                          uint64_t len, bool bypass_image_cache) {
     assert(s_instance != nullptr);
-    s_instance->aio_discard(c, off, len);
+    s_instance->aio_discard(c, off, len, bypass_image_cache);
   }
 
-  MOCK_METHOD1(aio_flush, void(AioCompletion *c));
-  static void aio_flush(MockReplayImageCtx *ictx, AioCompletion *c) {
+  MOCK_METHOD2(aio_flush, void(AioCompletion *c, bool bypass_image_cache));
+  static void aio_flush(MockReplayImageCtx *ictx, AioCompletion *c,
+                        bool bypass_image_cache) {
     assert(s_instance != nullptr);
-    s_instance->aio_flush(c);
+    s_instance->aio_flush(c, bypass_image_cache);
   }
 
   AioImageRequest() {
@@ -99,27 +103,29 @@ public:
   void expect_aio_discard(MockAioImageRequest &mock_aio_image_request,
                           AioCompletion **aio_comp, uint64_t off,
                           uint64_t len) {
-    EXPECT_CALL(mock_aio_image_request, aio_discard(_, off, len))
+    EXPECT_CALL(mock_aio_image_request, aio_discard(_, off, len, true))
                   .WillOnce(SaveArg<0>(aio_comp));
   }
 
   void expect_aio_flush(MockAioImageRequest &mock_aio_image_request,
                         AioCompletion **aio_comp) {
-    EXPECT_CALL(mock_aio_image_request, aio_flush(_))
+    EXPECT_CALL(mock_aio_image_request, aio_flush(_, true))
                   .WillOnce(SaveArg<0>(aio_comp));
   }
 
   void expect_aio_flush(MockReplayImageCtx &mock_image_ctx,
                         MockAioImageRequest &mock_aio_image_request, int r) {
-    EXPECT_CALL(mock_aio_image_request, aio_flush(_))
+    EXPECT_CALL(mock_aio_image_request, aio_flush(_, true))
                   .WillOnce(CompleteAioCompletion(r, mock_image_ctx.image_ctx));
   }
 
   void expect_aio_write(MockAioImageRequest &mock_aio_image_request,
                         AioCompletion **aio_comp, uint64_t off,
                         uint64_t len, const char *data) {
+    bufferlist bl;
+    bl.append(data, len);
     EXPECT_CALL(mock_aio_image_request,
-                aio_write(_, off, len, CStrEq(data), _))
+                aio_write(_, off, ContentsEqual(bl), _, true))
                   .WillOnce(SaveArg<0>(aio_comp));
   }
 
@@ -302,9 +308,9 @@ TEST_F(TestMockJournalReplay, AioWrite) {
   AioCompletion *aio_comp;
   C_SaferCond on_ready;
   C_SaferCond on_safe;
-  expect_aio_write(mock_aio_image_request, &aio_comp, 123, 456, "test");
+  expect_aio_write(mock_aio_image_request, &aio_comp, 123, 4, "test");
   when_process(mock_journal_replay,
-               EventEntry{AioWriteEvent(123, 456, to_bl("test"))},
+               EventEntry{AioWriteEvent(123, 4, to_bl("test"))},
                &on_ready, &on_safe);
 
   when_complete(mock_image_ctx, aio_comp, 0);
@@ -426,13 +432,13 @@ TEST_F(TestMockJournalReplay, PauseIO) {
   for (size_t i = 0; i < io_count; ++i) {
     AioCompletion *aio_comp;
     C_SaferCond on_ready;
-    expect_aio_write(mock_aio_image_request, &aio_comp, 123, 456, "test");
+    expect_aio_write(mock_aio_image_request, &aio_comp, 123, 4, "test");
     if ((i + 1) % 32 == 0) {
       flush_comps.push_back(nullptr);
       expect_aio_flush(mock_aio_image_request, &flush_comps.back());
     }
     when_process(mock_journal_replay,
-                 EventEntry{AioWriteEvent(123, 456, to_bl("test"))},
+                 EventEntry{AioWriteEvent(123, 4, to_bl("test"))},
                  &on_ready, &on_safes[i]);
     when_complete(mock_image_ctx, aio_comp, 0);
     if (i < io_count - 1) {
