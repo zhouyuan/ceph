@@ -47,9 +47,6 @@ class WritebackHandler {
 			   Context *oncommit) {
     return 0;
   }
-
-  virtual void get_client_lock() {}
-  virtual void put_client_lock() {}
 };
 
 #endif
