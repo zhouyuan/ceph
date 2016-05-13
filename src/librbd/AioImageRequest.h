@@ -62,6 +62,7 @@ protected:
     m_bypass_image_cache = true;
   }
 
+  virtual int clip_request() = 0;
   virtual void send_request() = 0;
   virtual void send_image_cache_request() = 0;
   virtual const char *get_request_type() const = 0;
@@ -73,13 +74,14 @@ public:
                Extents&& image_extents, char *buf, bufferlist *pbl,
                int op_flags)
     : AioImageRequest(image_ctx, aio_comp),
-      m_image_extents(std::move(image_extents)), m_buf(buf), m_pbl(pbl),
-      m_op_flags(op_flags) {
+      m_image_extents(std::move(image_extents)), m_op_flags(op_flags) {
+    m_aio_comp->read_buf = buf;
+    m_aio_comp->read_bl = pbl;
   }
 
 protected:
+  virtual int clip_request();
   virtual void send_request();
-
   virtual void send_image_cache_request();
 
   virtual const char *get_request_type() const {
@@ -87,8 +89,6 @@ protected:
   }
 private:
   Extents m_image_extents;
-  char *m_buf;
-  bufferlist *m_pbl;
   int m_op_flags;
 };
 
@@ -106,7 +106,7 @@ protected:
   typedef std::vector<ObjectExtent> ObjectExtents;
 
   const uint64_t m_off;
-  const size_t m_len;
+  size_t m_len;
 
   AbstractAioImageWrite(ImageCtx &image_ctx, AioCompletion *aio_comp,
                         uint64_t off, size_t len)
@@ -114,6 +114,7 @@ protected:
       m_synchronous(false) {
   }
 
+  virtual int clip_request();
   virtual void send_request();
 
   virtual uint32_t get_cache_request_count(bool journaling) const {
@@ -160,7 +161,6 @@ protected:
   void assemble_extent(const ObjectExtent &object_extent, bufferlist *bl);
 
   virtual void send_image_cache_request();
-
   virtual void send_cache_requests(const ObjectExtents &object_extents,
                                    uint64_t journal_tid);
 
@@ -194,7 +194,6 @@ protected:
   virtual uint32_t get_cache_request_count(bool journaling) const override;
 
   virtual void send_image_cache_request();
-
   virtual void send_cache_requests(const ObjectExtents &object_extents,
                                    uint64_t journal_tid);
 
@@ -218,6 +217,9 @@ public:
   }
 
 protected:
+  virtual int clip_request() {
+    return 0;
+  }
   virtual void send_request();
   virtual void send_image_cache_request();
   virtual const char *get_request_type() const {

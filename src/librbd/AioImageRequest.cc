@@ -141,6 +141,12 @@ void AioImageRequest<I>::send() {
 
   m_aio_comp->get();
 
+  int r = clip_request();
+  if (r < 0) {
+    m_aio_comp->fail(r);
+    return;
+  }
+
   // TODO
   if (m_bypass_image_cache || true) {
     send_request();
@@ -153,6 +159,22 @@ template <typename I>
 void AioImageRequest<I>::fail(int r) {
   m_aio_comp->get();
   m_aio_comp->fail(r);
+}
+
+int AioImageRead::clip_request() {
+  RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
+  m_aio_comp->read_buf_len = 0;
+  for (auto &image_extent : m_image_extents) {
+    size_t clip_len = image_extent.second;
+    int r = clip_io(&m_image_ctx, image_extent.first, &clip_len);
+    if (r < 0) {
+      return r;
+    }
+    image_extent.second = clip_len;
+    m_aio_comp->read_buf_len += clip_len;
+  }
+
+  return 0;
 }
 
 void AioImageRead::send_request() {
@@ -172,30 +194,19 @@ void AioImageRead::send_request() {
     RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
     snap_id = m_image_ctx.snap_id;
 
-    // map
-    for (vector<pair<uint64_t,uint64_t> >::const_iterator p =
-           m_image_extents.begin();
-         p != m_image_extents.end(); ++p) {
-      uint64_t len = p->second;
-      int r = clip_io(&m_image_ctx, p->first, &len);
-      if (r < 0) {
-        m_aio_comp->fail(r);
-        return;
-      }
-      if (len == 0) {
+    // map image extents to object extents
+    for (auto &image_extent : m_image_extents) {
+      if (image_extent.second == 0) {
         continue;
       }
 
       Striper::file_to_extents(cct, m_image_ctx.format_string,
-                               &m_image_ctx.layout, p->first, len, 0,
-                               object_extents, buffer_ofs);
-      buffer_ofs += len;
+                               &m_image_ctx.layout, image_extent.first,
+                               image_extent.second, 0, object_extents,
+                               buffer_ofs);
+      buffer_ofs += image_extent.second;
     }
   }
-
-  m_aio_comp->read_buf = m_buf;
-  m_aio_comp->read_buf_len = buffer_ofs;
-  m_aio_comp->read_bl = m_pbl;
 
   // pre-calculate the expected number of read requests
   uint32_t request_count = 0;
@@ -241,14 +252,21 @@ void AioImageRead::send_image_cache_request() {
   // TODO
 }
 
+int AbstractAioImageWrite::clip_request() {
+  RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
+  int r = clip_io(&m_image_ctx, m_off, &m_len);
+  if (r < 0) {
+    return r;
+  }
+
+  return 0;
+}
+
 void AbstractAioImageWrite::send_request() {
   CephContext *cct = m_image_ctx.cct;
 
   RWLock::RLocker md_locker(m_image_ctx.md_lock);
-
   bool journaling = false;
-
-  uint64_t clip_len = m_len;
   ObjectExtents object_extents;
   ::SnapContext snapc;
   {
@@ -260,18 +278,12 @@ void AbstractAioImageWrite::send_request() {
       return;
     }
 
-    int r = clip_io(&m_image_ctx, m_off, &clip_len);
-    if (r < 0) {
-      m_aio_comp->fail(r);
-      return;
-    }
-
     snapc = m_image_ctx.snapc;
 
     // map to object extents
-    if (clip_len > 0) {
+    if (m_len > 0) {
       Striper::file_to_extents(cct, m_image_ctx.format_string,
-                               &m_image_ctx.layout, m_off, clip_len, 0,
+                               &m_image_ctx.layout, m_off, m_len, 0,
                                object_extents);
     }
 
@@ -302,7 +314,7 @@ void AbstractAioImageWrite::send_request() {
     m_aio_comp->unblock();
   }
 
-  update_stats(clip_len);
+  update_stats(m_len);
   m_aio_comp->put();
 }
 
