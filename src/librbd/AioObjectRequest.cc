@@ -95,12 +95,11 @@ namespace librbd {
 
   AioObjectRead::AioObjectRead(ImageCtx *ictx, const std::string &oid,
                                uint64_t objectno, uint64_t offset, uint64_t len,
-                               vector<pair<uint64_t,uint64_t> >& be,
-                               librados::snap_t snap_id, bool sparse,
-                               Context *completion, int op_flags)
+                               Extents&& be, librados::snap_t snap_id,
+                               bool sparse, Context *completion, int op_flags)
     : AioObjectRequest(ictx, oid, objectno, offset, len, snap_id, completion,
                        false),
-      m_buffer_extents(be), m_tried_parent(false), m_sparse(sparse),
+      m_buffer_extents(std::move(be)), m_tried_parent(false), m_sparse(sparse),
       m_op_flags(op_flags), m_state(LIBRBD_AIO_READ_FLAT) {
     guard_read();
   }
@@ -142,7 +141,7 @@ namespace librbd {
 	  }
 
           // calculate reverse mapping onto the image
-          vector<pair<uint64_t,uint64_t> > parent_extents;
+          Extents parent_extents;
           Striper::extent_to_file(m_ictx->cct, &m_ictx->layout, m_object_no,
                                   m_object_off, m_object_len, parent_extents);
 
@@ -160,7 +159,7 @@ namespace librbd {
               m_state = LIBRBD_AIO_READ_COPYUP;
 	    }
 
-            read_from_parent(parent_extents);
+            read_from_parent(std::move(parent_extents));
             finished = false;
           }
         }
@@ -253,16 +252,18 @@ namespace librbd {
     }
   }
 
-  void AioObjectRead::read_from_parent(const vector<pair<uint64_t,uint64_t> >& parent_extents)
+  void AioObjectRead::read_from_parent(Extents&& parent_extents)
   {
-    AioCompletion *parent_completion = AioCompletion::create<AioObjectRequest>(this);
+    AioCompletion *parent_completion =
+      AioCompletion::create<AioObjectRequest>(this);
 
     ldout(m_ictx->cct, 20) << "read_from_parent this = " << this
 			   << " parent completion " << parent_completion
 			   << " extents " << parent_extents
 			   << dendl;
     AioImageRequest<>::aio_read(m_ictx->parent, parent_completion,
-                                parent_extents, nullptr, &m_read_data, 0);
+                                std::move(parent_extents), nullptr,
+                                &m_read_data, 0);
   }
 
   /** write **/

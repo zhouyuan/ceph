@@ -46,6 +46,8 @@ namespace librbd {
     }
 
   protected:
+    typedef std::vector<std::pair<uint64_t,uint64_t> > Extents;
+
     bool compute_parent_extents();
 
     ImageCtx *m_ictx;
@@ -53,7 +55,7 @@ namespace librbd {
     uint64_t m_object_no, m_object_off, m_object_len;
     librados::snap_t m_snap_id;
     Context *m_completion;
-    std::vector<std::pair<uint64_t,uint64_t> > m_parent_extents;
+    Extents m_parent_extents;
     bool m_hide_enoent;
   };
 
@@ -61,8 +63,7 @@ namespace librbd {
   public:
     AioObjectRead(ImageCtx *ictx, const std::string &oid,
 	          uint64_t objectno, uint64_t offset, uint64_t len,
-	          vector<pair<uint64_t,uint64_t> >& be,
-	          librados::snap_t snap_id, bool sparse,
+	          Extents&& be, librados::snap_t snap_id, bool sparse,
 	          Context *completion, int op_flags);
 
     virtual bool should_complete(int r);
@@ -78,7 +79,7 @@ namespace librbd {
     friend class C_AioRead;
 
   private:
-    vector<pair<uint64_t,uint64_t> > m_buffer_extents;
+    Extents m_buffer_extents;
     bool m_tried_parent;
     bool m_sparse;
     int m_op_flags;
@@ -110,7 +111,7 @@ namespace librbd {
 
     void send_copyup();
 
-    void read_from_parent(const vector<pair<uint64_t,uint64_t> >& image_extents);
+    void read_from_parent(Extents&& image_extents);
   };
 
   class AbstractAioObjectWrite : public AioObjectRequest {

@@ -16,8 +16,10 @@ namespace librbd {
 
   class CopyupRequest {
   public:
+    typedef std::vector<std::pair<uint64_t,uint64_t> > Extents;
+
     CopyupRequest(ImageCtx *ictx, const std::string &oid, uint64_t objectno,
-                  vector<pair<uint64_t,uint64_t> >& image_extents);
+                  const Extents& image_extents);
     ~CopyupRequest();
 
     void append_request(AioObjectRequest *req);
@@ -63,7 +65,7 @@ namespace librbd {
     ImageCtx *m_ictx;
     std::string m_oid;
     uint64_t m_object_no;
-    vector<pair<uint64_t,uint64_t> > m_image_extents;
+    Extents m_image_extents;
     State m_state;
     ceph::bufferlist m_copyup_data;
     vector<AioObjectRequest *> m_pending_requests;

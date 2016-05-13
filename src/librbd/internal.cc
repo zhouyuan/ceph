@@ -2314,7 +2314,7 @@ remove_mirroring_image:
       bufferlist *bl = new bufferlist();
       Context *ctx = new C_CopyRead(&throttle, dest, offset, bl);
       AioCompletion *comp = AioCompletion::create(ctx);
-      AioImageRequest<>::aio_read(src, comp, offset, len, NULL, bl,
+      AioImageRequest<>::aio_read(src, comp, {{offset, len}}, NULL, bl,
                                   fadvise_flags);
       prog_ctx.update_progress(offset, src_size);
     }
@@ -2539,7 +2539,7 @@ remove_mirroring_image:
 
       C_SaferCond ctx;
       AioCompletion *c = AioCompletion::create(&ctx);
-      AioImageRequest<>::aio_read(ictx, c, off, read_len, NULL, &bl, 0);
+      AioImageRequest<>::aio_read(ictx, c, {{off, read_len}}, NULL, &bl, 0);
 
       int ret = ctx.wait();
       if (ret < 0) {

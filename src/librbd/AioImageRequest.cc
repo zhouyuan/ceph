@@ -79,19 +79,10 @@ struct C_FlushJournalCommit : public Context {
 
 template <typename I>
 void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c,
-                                  const Extents &extents, char *buf,
+                                  Extents&& image_extents, char *buf,
                                   bufferlist *pbl, int op_flags) {
   c->init_time(ictx, librbd::AIO_TYPE_READ);
-  AioImageRead req(*ictx, c, extents, buf, pbl, op_flags);
-  req.send();
-}
-
-template <typename I>
-void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c, uint64_t off,
-                                  size_t len, char *buf, bufferlist *pbl,
-                                  int op_flags) {
-  c->init_time(ictx, librbd::AIO_TYPE_READ);
-  AioImageRead req(*ictx, c, off, len, buf, pbl, op_flags);
+  AioImageRead req(*ictx, c, std::move(image_extents), buf, pbl, op_flags);
   req.send();
 }
 
@@ -202,8 +193,9 @@ void AioImageRead::send_request() {
       AioObjectRead *req = new AioObjectRead(&m_image_ctx, extent.oid.name,
                                              extent.objectno, extent.offset,
                                              extent.length,
-                                             extent.buffer_extents, snap_id,
-                                             true, req_comp, m_op_flags);
+                                             std::move(extent.buffer_extents),
+                                             snap_id, true, req_comp,
+                                             m_op_flags);
       req_comp->set_req(req);
 
       if (m_image_ctx.object_cacher) {
