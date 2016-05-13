@@ -174,8 +174,6 @@ void AioImageRead::send_request() {
                                object_extents, buffer_ofs);
       buffer_ofs += len;
     }
-
-    m_aio_comp->start_op();
   }
 
   m_aio_comp->read_buf = m_buf;
@@ -247,7 +245,6 @@ void AbstractAioImageWrite::send_request() {
     }
 
     snapc = m_image_ctx.snapc;
-    m_aio_comp->start_op();
 
     // map to object extents
     if (clip_len > 0) {
@@ -465,7 +462,6 @@ void AioImageFlush::send_request() {
   C_AioRequest *req_comp = new C_AioRequest(m_aio_comp);
   m_image_ctx.flush(req_comp);
 
-  m_aio_comp->start_op();
   m_aio_comp->put();
 
   m_image_ctx.perfcounter->inc(l_librbd_aio_flush);

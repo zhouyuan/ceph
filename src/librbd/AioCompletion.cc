@@ -137,7 +137,7 @@ void AioCompletion::start_op() {
   Mutex::Locker locker(lock);
   assert(ictx != nullptr);
   assert(!async_op.started());
-  if (!done) {
+  if (!done && aio_type != AIO_TYPE_FLUSH) {
     async_op.start_op(*ictx);
   }
 }
