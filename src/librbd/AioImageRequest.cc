@@ -368,6 +368,7 @@ uint64_t AioImageWrite::append_journal_event(
   return tid;
 }
 
+
 void AioImageWrite::send_image_cache_request() {
   assert(m_image_ctx.image_cache != nullptr);
 

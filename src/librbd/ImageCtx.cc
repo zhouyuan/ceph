@@ -246,6 +246,7 @@ struct C_InvalidateCache : public Context {
     delete aio_work_queue;
     delete operations;
     delete state;
+    delete rbc;
   }
 
   void ImageCtx::init() {
@@ -256,6 +257,7 @@ struct C_InvalidateCache : public Context {
     }
     apply_metadata_confs();
 
+    ldout(cct, 0) << "imagectx init" << dendl;
     asok_hook = new LibrbdAdminSocketHook(this);
 
     string pname = string("librbd-") + id + string("-") +
@@ -951,6 +953,13 @@ struct C_InvalidateCache : public Context {
       }
     }
     return true;
+  }
+
+  void ImageCtx::write_to_rbccache( const char* buf, size_t len, uint64_t off, Context *onfinish) {
+    if(!rbc)
+      rbc = new rbc::librbc();
+    int r = rbc->rbc_write(name.c_str(), off, len, buf);
+    onfinish->complete(r);
   }
 
   void ImageCtx::apply_metadata_confs() {

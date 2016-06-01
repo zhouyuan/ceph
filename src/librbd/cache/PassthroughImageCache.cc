@@ -39,7 +39,8 @@ void PassthroughImageCache<I>::aio_write(uint64_t offset, bufferlist&& bl,
                  << "length=" << bl.length() << ", "
                  << "on_finish=" << on_finish << dendl;
 
-  m_image_writeback.aio_write(offset, std::move(bl), fadvise_flags, on_finish);
+  m_image_ctx.write_to_rbccache(bl.c_str(), bl.length(), offset, on_finish);
+  //m_image_writeback.aio_write(offset, std::move(bl), fadvise_flags, on_finish);
 }
 
 template <typename I>

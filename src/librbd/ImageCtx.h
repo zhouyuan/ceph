@@ -31,6 +31,7 @@
 #include "librbd/LibrbdWriteback.h"
 #include "librbd/SnapInfo.h"
 #include "librbd/parent_types.h"
+#include <rbc/librbc.h>
 
 class CephContext;
 class ContextWQ;
@@ -85,6 +86,7 @@ namespace librbd {
     IoCtx data_ctx, md_ctx;
     ImageWatcher *image_watcher;
     Journal<ImageCtx> *journal;
+    rbc::librbc *rbc;
 
     /**
      * Lock ordering:
@@ -265,6 +267,8 @@ namespace librbd {
     void aio_read_from_cache(object_t o, uint64_t object_no, bufferlist *bl,
 			     size_t len, uint64_t off, Context *onfinish,
 			     int fadvise_flags);
+
+    void write_to_rbccache(const char* buf, size_t len, uint64_t off, Context *onfinish);
     void write_to_cache(object_t o, const bufferlist& bl, size_t len,
 			uint64_t off, Context *onfinish, int fadvise_flags,
                         uint64_t journal_tid);
