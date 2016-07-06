@@ -26,8 +26,24 @@ void PassthroughImageCache<I>::aio_read(Extents &&image_extents, bufferlist *bl,
   ldout(cct, 20) << "image_extents=" << image_extents << ", "
                  << "on_finish=" << on_finish << dendl;
 
-  m_image_writeback.aio_read(std::move(image_extents), bl, fadvise_flags,
-                             on_finish);
+  int ret = 0;
+  for (auto &image_extent : image_extents) {
+    if (image_extent.second == 0) {
+      continue;
+    }
+    uint64_t offset = image_extent.first;
+    ret = m_image_ctx.simple_wal->read(offset/4096, bl->c_str(), offset, image_extent.second);
+
+    ldout(cct, 0) << "extent=" << image_extent << ", "
+                  << ret << dendl;
+  }
+
+  if (ret > 0 ) {
+    on_finish->complete(ret);
+  } else {
+    m_image_writeback.aio_read(std::move(image_extents), bl, fadvise_flags,
+                               on_finish);
+  }
 }
 
 template <typename I>
@@ -39,6 +55,8 @@ void PassthroughImageCache<I>::aio_write(uint64_t offset, bufferlist&& bl,
                  << "length=" << bl.length() << ", "
                  << "on_finish=" << on_finish << dendl;
 
+  //assert(m_image_ctx.simple_wal != nullptr);
+  m_image_ctx.simple_wal->write(offset/4096, bl.c_str(), offset, bl.length());
   m_image_writeback.aio_write(offset, std::move(bl), fadvise_flags, on_finish);
 }
 

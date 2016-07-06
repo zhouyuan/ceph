@@ -31,6 +31,7 @@
 #include "librbd/LibrbdWriteback.h"
 #include "librbd/SnapInfo.h"
 #include "librbd/parent_types.h"
+#include "librbd/cache/simplewal.h"
 
 class CephContext;
 class ContextWQ;
@@ -53,6 +54,7 @@ namespace librbd {
   template <typename> class Operations;
 
   namespace cache { struct ImageCache; }
+  namespace cache { class simplewal; }
   namespace exclusive_lock { struct Policy; }
   namespace journal { struct Policy; }
 
@@ -129,6 +131,7 @@ namespace librbd {
     file_layout_t layout;
 
     cache::ImageCache *image_cache = nullptr;
+    cache::simplewal *simple_wal = nullptr;
     ObjectCacher *object_cacher;
     LibrbdWriteback *writeback_handler;
     ObjectCacher::ObjectSet *object_set;

@@ -15,6 +15,7 @@
 #include "librbd/AsyncOperation.h"
 #include "librbd/AsyncRequest.h"
 #include "librbd/cache/PassthroughImageCache.h"
+#include "librbd/cache/simplewal.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/exclusive_lock/StandardPolicy.h"
 #include "librbd/internal.h"
@@ -224,6 +225,8 @@ struct C_InvalidateCache : public Context {
     if (image_cache) {
       delete image_cache;
       image_cache = nullptr;
+      delete simple_wal;
+      simple_wal = nullptr;
     }
     if (writeback_handler) {
       delete writeback_handler;
@@ -269,6 +272,7 @@ struct C_InvalidateCache : public Context {
 
     {
       // TODO: dummy passthrough image cache always enabled
+      simple_wal = new cache::simplewal("/dev/sdb", 4096*1024*1024L, 4096);
       image_cache = new cache::PassthroughImageCache<>(*this);
 
       // TODO: integrate into open image state machine
