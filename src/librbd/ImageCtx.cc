@@ -15,6 +15,8 @@
 #include "librbd/AioCompletion.h"
 #include "librbd/AsyncOperation.h"
 #include "librbd/AsyncRequest.h"
+#include "librbd/cache/PassthroughImageCache.h"
+#include "librbd/cache/SimpleBlockCacher.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/exclusive_lock/AutomaticPolicy.h"
 #include "librbd/exclusive_lock/StandardPolicy.h"
@@ -229,6 +231,12 @@ struct C_InvalidateCache : public Context {
       delete object_cacher;
       object_cacher = NULL;
     }
+    if (image_cache) {
+        delete image_cache;
+        image_cache = nullptr;
+        delete sbc;
+        sbc = nullptr;
+    }
     if (writeback_handler) {
       delete writeback_handler;
       writeback_handler = NULL;
@@ -266,6 +274,23 @@ struct C_InvalidateCache : public Context {
     }
 
     perf_start(pname);
+
+    if (cct->_conf->rbd_image_cache) {
+      // TODO: dummy passthrough image cache always enabled
+      string cache_file = cct->_conf->rbd_image_cache_dir + pname;
+      sbc = new cache::SimpleBlockCacher(cache_file.c_str(),
+                                         cct->_conf->rbd_image_cache_size,
+                                         cct->_conf->rbd_image_cache_block_size);
+      sbc->init();
+      image_cache = new cache::PassthroughImageCache<>(*this);
+
+      // TODO: integrate into open image state machine
+      C_SaferCond ctx;
+      image_cache->init(&ctx);
+
+      int r = ctx.wait();
+      assert(r == 0);
+    }
 
     if (cache) {
       Mutex::Locker l(cache_lock);

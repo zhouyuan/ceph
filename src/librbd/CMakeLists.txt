@@ -29,6 +29,7 @@ set(librbd_internal_srcs
   Utils.cc
   cache/ImageWriteback.cc
   cache/PassthroughImageCache.cc
+  cache/SimpleBlockCacher.cc
   Watcher.cc
   watcher/Types.cc
   watcher/RewatchRequest.cc

@@ -26,8 +26,37 @@ void PassthroughImageCache<I>::aio_read(Extents &&image_extents, bufferlist *bl,
   ldout(cct, 20) << "image_extents=" << image_extents << ", "
                  << "on_finish=" << on_finish << dendl;
 
-  m_image_writeback.aio_read(std::move(image_extents), bl, fadvise_flags,
-                             on_finish);
+  int ret = -1;
+  for (auto &image_extent : image_extents) {
+    if (image_extent.second == 0) {
+      continue;
+    }
+    uint64_t offset = image_extent.first;
+    ret = m_image_ctx.sbc->read(cct->_conf->rbd_image_cache_block_size,
+                                bl->c_str(), offset, image_extent.second);
+
+    ldout(cct, 20) << " read extent=" << image_extent << ", "
+                   << ret << dendl;
+  }
+
+  if (ret > 0 ) {
+    //  promote
+    for (auto &image_extent : image_extents) {
+      if (image_extent.second == 0) {
+        continue;
+      }
+      uint64_t offset = image_extent.first;
+      ret = m_image_ctx.sbc->write(offset/cct->_conf->rbd_image_cache_block_size,
+                                   bl->c_str(), offset, image_extent.second);
+
+      ldout(cct, 20) << "extent=" << image_extent << ", "
+                     << ret << dendl;
+    }
+    on_finish->complete(ret);
+  } else {
+    m_image_writeback.aio_read(std::move(image_extents), bl, fadvise_flags,
+                               on_finish);
+  }
 }
 
 template <typename I>
@@ -38,6 +67,19 @@ void PassthroughImageCache<I>::aio_write(Extents &&image_extents,
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "image_extents=" << image_extents << ", "
                  << "on_finish=" << on_finish << dendl;
+
+  int ret = -1;
+  for (auto &image_extent : image_extents) {
+    if (image_extent.second == 0) {
+      continue;
+    }
+    uint64_t offset = image_extent.first;
+    ret = m_image_ctx.sbc->write(offset/cct->_conf->rbd_image_cache_block_size,
+                                 bl.c_str(), offset, image_extent.second);
+
+    ldout(cct, 20) << " write extent=" << image_extent << ", "
+                   << ret << dendl;
+  }
 
   m_image_writeback.aio_write(std::move(image_extents), std::move(bl),
                               fadvise_flags, on_finish);
@@ -51,6 +93,10 @@ void PassthroughImageCache<I>::aio_discard(uint64_t offset, uint64_t length,
                  << "length=" << length << ", "
                  << "on_finish=" << on_finish << dendl;
 
+  int ret = m_image_ctx.sbc->remove(offset/cct->_conf->rbd_image_cache_block_size);
+  if (ret == 0) {
+    ldout(cct, 0) << " remove offset=" << offset << ret << dendl;
+  }
   m_image_writeback.aio_discard(offset, length, on_finish);
 }
 

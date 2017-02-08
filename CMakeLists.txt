@@ -37,7 +37,7 @@ else()
   message(STATUS "No systemtype selected for building")
 endif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 
-option(WITH_CCACHE "Build with ccache.")
+option(WITH_CCACHE "Build with ccache." ON)
 if(WITH_CCACHE)
   find_program(CCACHE_FOUND ccache)
   if(CCACHE_FOUND)
