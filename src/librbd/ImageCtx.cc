@@ -14,6 +14,7 @@
 #include "librbd/AsyncOperation.h"
 #include "librbd/AsyncRequest.h"
 #include "librbd/ExclusiveLock.h"
+#include "librbd/cache/PassthroughImageCache.h"
 #include "librbd/internal.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -229,6 +230,10 @@ struct C_InvalidateCache : public Context {
       delete object_cacher;
       object_cacher = NULL;
     }
+    if (image_cache) {
+        delete image_cache;
+        image_cache = nullptr;
+    }
     if (writeback_handler) {
       delete writeback_handler;
       writeback_handler = NULL;
@@ -266,6 +271,10 @@ struct C_InvalidateCache : public Context {
     }
 
     perf_start(pname);
+
+    if (cct->_conf->rbd_image_cache) {
+        image_cache = new cache::PassthroughImageCache<>(*this);
+    }
 
     if (cache) {
       Mutex::Locker l(cache_lock);

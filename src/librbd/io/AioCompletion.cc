@@ -46,6 +46,7 @@ void AioCompletion::finalize(ssize_t rval)
 
   ldout(cct, 20) << this << " " << __func__ << ": r=" << rval << dendl;
   if (rval >= 0 && aio_type == AIO_TYPE_READ) {
+    read_result.set_clip_length(rval);
     read_result.assemble_result(cct);
   }
 }
