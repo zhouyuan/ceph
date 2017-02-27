@@ -28,6 +28,7 @@
 #include "librbd/AsyncRequest.h"
 #include "librbd/SnapInfo.h"
 #include "librbd/parent_types.h"
+#include "librbd/cache/SimpleBlockCacher.h"
 
 class CephContext;
 class ContextWQ;
@@ -49,6 +50,7 @@ namespace librbd {
   class LibrbdWriteback;
 
   namespace cache { struct ImageCache; }
+  namespace cache {class SimpleBlockCacher;}
   namespace exclusive_lock { struct Policy; }
   namespace io {
   class AioCompletion;
@@ -131,6 +133,7 @@ namespace librbd {
     file_layout_t layout;
 
     cache::ImageCache *image_cache = nullptr;
+    cache::SimpleBlockCacher *sbc = nullptr;
     ObjectCacher *object_cacher;
     LibrbdWriteback *writeback_handler;
     ObjectCacher::ObjectSet *object_set;

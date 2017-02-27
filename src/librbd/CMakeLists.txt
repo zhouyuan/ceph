@@ -24,6 +24,7 @@ set(librbd_internal_srcs
   Utils.cc
   cache/ImageWriteback.cc
   cache/PassthroughImageCache.cc
+  cache/SimpleBlockCacher.cc
   Watcher.cc
   exclusive_lock/AutomaticPolicy.cc
   exclusive_lock/PreAcquireRequest.cc

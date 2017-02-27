@@ -15,6 +15,7 @@
 #include "librbd/AsyncRequest.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/cache/PassthroughImageCache.h"
+#include "librbd/cache/SimpleBlockCacher.h"
 #include "librbd/internal.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -233,6 +234,8 @@ struct C_InvalidateCache : public Context {
     if (image_cache) {
         delete image_cache;
         image_cache = nullptr;
+        delete sbc;
+        sbc = nullptr;
     }
     if (writeback_handler) {
       delete writeback_handler;
@@ -273,6 +276,10 @@ struct C_InvalidateCache : public Context {
     perf_start(pname);
 
     if (cct->_conf->rbd_image_cache) {
+        string cache_file = cct->_conf->rbd_image_cache_dir + "/" + name;
+        sbc = new cache::SimpleBlockCacher(cache_file.c_str(), cct->_conf->rbd_image_cache_size, cct->_conf->rbd_image_cache_block_size);
+        sbc->init();
+
         image_cache = new cache::PassthroughImageCache<>(*this);
     }
 
