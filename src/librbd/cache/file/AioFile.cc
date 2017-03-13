@@ -193,7 +193,7 @@ template <typename I>
 int AioFile<I>::write(uint64_t offset, const ceph::bufferlist &bl,
                       bool sync) {
   CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "offset=" << offset << ", "
+  ldout(cct, 20) << "AAA offset=" << offset << ", "
                  << "length=" << bl.length() << dendl;
 
   int r = bl.write_fd(m_fd, offset);

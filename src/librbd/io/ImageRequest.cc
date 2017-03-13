@@ -76,6 +76,28 @@ struct C_FlushJournalCommit : public Context {
     CephContext *cct = image_ctx.cct;
     ldout(cct, 20) << this << " C_FlushJournalCommit: journal committed"
                    << dendl;
+    aio_comp->complete_request(r);
+  }
+};
+
+template <typename ImageCtxT>
+class C_ImageCacheRead : public C_AioRequest {
+public:
+  typedef std::vector<std::pair<uint64_t,uint64_t> > Extents;
+
+  C_ImageCacheRead(AioCompletion *completion, const Extents &image_extents)
+    : C_AioRequest(completion), m_image_extents(image_extents) {
+  }
+
+  inline bufferlist &get_data() {
+    return m_bl;
+  }
+
+protected:
+  virtual void finish(int r) {
+    CephContext *cct = m_completion->ictx->cct;
+    ldout(cct, 10) << "C_ImageCacheRead::finish() " << this << ": r=" << r
+                   << dendl;
     if (r >= 0) {
       size_t length = 0;
       for (auto &image_extent : m_image_extents) {
@@ -83,12 +105,16 @@ struct C_FlushJournalCommit : public Context {
       }
       assert(length == m_bl.length());
 
-      m_completion->destriper.add_partial_sparse_result(
-          cct, m_bl, {{0, length}}, 0, {{0, length}});
+      //m_completion->destriper.add_partial_sparse_result(
+      //    cct, m_bl, {{0, length}}, 0, {{0, length}});
       r = length;
     }
     C_AioRequest::finish(r);
   }
+
+private:
+  bufferlist m_bl;
+  Extents m_image_extents;
 };
 
 template <typename ImageCtxT>
@@ -386,12 +412,9 @@ void ImageReadRequest<I>::send_image_cache_request() {
 
   AioCompletion *aio_comp = this->m_aio_comp;
   if (len > 0) {
-    aio_comp->read_buf = m_buf;
-    aio_comp->read_buf_len = len;
-    aio_comp->read_bl = m_pbl;
     aio_comp->set_request_count(1);
 
-    C_ImageCacheRead<I> *req_comp = new C_ImageCacheRead<I>(
+    auto *req_comp = new C_ImageCacheRead<I>(
       aio_comp, this->m_image_extents);
     image_ctx.image_cache->aio_read(std::move(this->m_image_extents),
                                     &req_comp->get_data(), m_op_flags,
@@ -713,6 +736,13 @@ template <typename I>
 void ImageFlushRequest<I>::send_request() {
   I &image_ctx = this->m_image_ctx;
   image_ctx.user_flushed();
+
+  bool journaling = false;
+  {
+    RWLock::RLocker snap_locker(image_ctx.snap_lock);
+    journaling = (image_ctx.journal != nullptr &&
+                  image_ctx.journal->is_journal_appending());
+  }
 
   AioCompletion *aio_comp = this->m_aio_comp;
   if (journaling) {

@@ -18,7 +18,6 @@ set(librbd_internal_srcs
   ManagedLock.cc
   MirroringWatcher.cc
   ObjectMap.cc
-  ObjectWatcher.cc
   Operations.cc
   Utils.cc
   Watcher.cc
@@ -35,7 +34,6 @@ set(librbd_internal_srcs
   cache/file/MetaStore.cc
   cache/file/StupidPolicy.cc
   cache/file/Types.cc
-  exclusive_lock/AcquireRequest.cc
   exclusive_lock/AutomaticPolicy.cc
   exclusive_lock/PreAcquireRequest.cc
   exclusive_lock/PostAcquireRequest.cc
@@ -121,35 +119,23 @@ endif()
 
 add_library(librbd ${CEPH_SHARED}
   librbd.cc)
-<<<<<<< HEAD
-=======
 if(LINUX)
   list(APPEND librbd
     $<TARGET_OBJECTS:parse_secret_objs>
     $<TARGET_OBJECTS:krbd_objs>
     )
 endif(LINUX)
->>>>>>> 70890ff... librbd: rename PassthroughImageCache to FileImageCache
 
 target_link_libraries(librbd LINK_PRIVATE
   rbd_internal
   rbd_types
   journal
-<<<<<<< HEAD
   librados 
   osdc
   cls_rbd_client 
   cls_lock_client 
   cls_journal_client 
   ceph-common
-=======
-  librados
-  common
-  osdc
-  cls_rbd_client
-  cls_lock_client
-  cls_journal_client
->>>>>>> 70890ff... librbd: rename PassthroughImageCache to FileImageCache
   pthread
   ${CMAKE_DL_LIBS}
   ${EXTRALIBS})
