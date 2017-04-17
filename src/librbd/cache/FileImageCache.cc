@@ -593,6 +593,18 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
         // block needs to be promoted to cache but we require a
         // read-modify-write cycle to fully populate the block
 
+        IOType io_type = static_cast<IOType>(block_io.io_type);
+        if ((io_type == IO_TYPE_WRITE || io_type == IO_TYPE_DISCARD) &&
+            block_io.tid == 0) {
+          // TODO support non-journal mode / writethrough-only
+          int r = journal_store.allocate_tid(&block_io.tid);
+          if (r < 0) {
+            ldout(cct, 20) << "journal full -- detaining block IO" << dendl;
+            //m_detained_block_ios.emplace_back(std::move(block_io));
+            return;
+          }
+        }
+
         // TODO optimize by only reading missing extents
         promote_buffers.emplace_back();
         if (block_io.tid > 0) {
@@ -623,12 +635,6 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
         }
       } else {
         // full block overwrite
-        if (block_io.tid > 0) {
-          req = new C_AppendEventToJournal<I>(cct, journal_store, block_io.tid,
-                                              block_io.block, IO_TYPE_WRITE,
-                                              req);
-        }
-
         req = new C_PromoteToCache<I>(cct, image_store, block_io.block,
                                       bl, req);
       }
@@ -1046,18 +1052,6 @@ void FileImageCache<I>::map_block(bool detain_block,
   }
 
   IOType io_type = static_cast<IOType>(block_io.io_type);
-  if ((io_type == IO_TYPE_WRITE || io_type == IO_TYPE_DISCARD) &&
-      block_io.tid == 0) {
-    // TODO support non-journal mode / writethrough-only
-    r = m_journal_store->allocate_tid(&block_io.tid);
-    if (r < 0) {
-      Mutex::Locker locker(m_lock);
-      ldout(cct, 20) << "journal full -- detaining block IO" << dendl;
-      m_detained_block_ios.emplace_back(std::move(block_io));
-      return;
-    }
-  }
-
   PolicyMapResult policy_map_result;
   uint64_t replace_cache_block;
   r = m_policy->map(io_type, block_io.block, block_io.partial_block,
@@ -1151,9 +1145,9 @@ void FileImageCache<I>::process_writeback_dirty_blocks() {
     uint64_t block;
     IOType io_type;
     bool demoted;
-    int r = m_journal_store->get_writeback_event(&tid, &block, &io_type,
-                                                 &demoted);
-    //int r = m_policy->get_writeback_block(&block);
+    //int r = m_journal_store->get_writeback_event(&tid, &block, &io_type,
+    //                                             &demoted);
+    int r = m_policy->get_writeback_block(&block);
     if (r == -ENODATA || r == -EBUSY) {
       // nothing to writeback
       return;
