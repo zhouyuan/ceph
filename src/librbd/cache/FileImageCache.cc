@@ -43,40 +43,38 @@ bool is_block_aligned(const ImageCache::Extents &image_extents) {
   return true;
 }
 
-struct C_BlockIORequest : public Context {
-  CephContext *cct;
-  C_BlockIORequest *next_block_request;
+class ThreadPoolSingleton : public ThreadPool {
+public:
+  ContextWQ *pcache_op_work_queue;
 
-  C_BlockIORequest(CephContext *cct, C_BlockIORequest *next_block_request)
-    : cct(cct), next_block_request(next_block_request) {
+  explicit ThreadPoolSingleton(CephContext *cct)
+    : ThreadPool(cct, "librbd::cache::thread_pool", "tp_librbd_cache", 32,
+                 "pcache_threads"),
+      pcache_op_work_queue(new ContextWQ("librbd::pcache_op_work_queue",
+                                  cct->_conf->rbd_op_thread_timeout,
+                                  this)) {
+    start();
   }
+  ~ThreadPoolSingleton() override {
+    pcache_op_work_queue->drain();
+    delete pcache_op_work_queue;
 
-  virtual void finish(int r) override {
-    ldout(cct, 20) << "(" << get_name() << "): r=" << r << dendl;
-
-    if (r < 0) {
-      // abort the chain of requests upon failure
-      next_block_request->complete(r);
-    } else {
-      // execute next request in chain
-      next_block_request->send();
-    }
+    stop();
   }
-
-  virtual void send() = 0;
-  virtual const char *get_name() const = 0;
 };
 
-struct C_ReleaseBlockGuard : public C_BlockIORequest {
+struct C_ReleaseBlockGuard : public BlockGuard::C_BlockIORequest {
   uint64_t block;
   ReleaseBlock &release_block;
   BlockGuard::C_BlockRequest *block_request;
+  BlockGuard::BlockIO block_io;
 
   C_ReleaseBlockGuard(CephContext *cct, uint64_t block,
                       ReleaseBlock &release_block,
-                      BlockGuard::C_BlockRequest *block_request)
+                      BlockGuard::C_BlockRequest *block_request,
+		      BlockGuard::BlockIO &&block_io)
     : C_BlockIORequest(cct, nullptr), block(block),
-      release_block(release_block), block_request(block_request) {
+      release_block(release_block), block_request(block_request), block_io(block_io) {
   }
 
   virtual void send() override {
@@ -87,18 +85,27 @@ struct C_ReleaseBlockGuard : public C_BlockIORequest {
   }
 
   virtual void finish(int r) override {
-    ldout(cct, 20) << "(" << get_name() << "): r=" << r << dendl;
+    ldout(cct, 1) << "(" << get_name() << "): block_io = " << block_io.block << ", r=" << r << dendl;
 
+    if(next_block_request == nullptr 
+	&& block_io.tail_block_io_request == this) {
+      block_io.tail_block_io_request = nullptr;
+      block_io.in_process = false;
+    }
     // IO operation finished -- release guard
     release_block(block);
 
     // complete block request
     block_request->complete_request(r);
+
+    if(next_block_request != nullptr) {
+      next_block_request->send();
+    }
   }
 };
 
 template <typename I>
-struct C_PromoteToCache : public C_BlockIORequest {
+struct C_PromoteToCache : public BlockGuard::C_BlockIORequest {
   ImageStore<I> &image_store;
   uint64_t block;
   const bufferlist &bl;
@@ -124,7 +131,7 @@ struct C_PromoteToCache : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_DemoteFromCache : public C_BlockIORequest {
+struct C_DemoteFromCache : public BlockGuard::C_BlockIORequest {
   ImageStore<I> &image_store;
   ReleaseBlock &release_block;
   uint64_t block;
@@ -154,7 +161,7 @@ struct C_DemoteFromCache : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_ReadFromCacheRequest : public C_BlockIORequest {
+struct C_ReadFromCacheRequest : public BlockGuard::C_BlockIORequest {
   ImageStore<I> &image_store;
   BlockGuard::BlockIO block_io;
   ExtentBuffers *extent_buffers;
@@ -186,7 +193,7 @@ struct C_ReadFromCacheRequest : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_ReadFromImageRequest : public C_BlockIORequest {
+struct C_ReadFromImageRequest : public BlockGuard::C_BlockIORequest {
   ImageWriteback<I> &image_writeback;
   BlockGuard::BlockIO block_io;
   ExtentBuffers *extent_buffers;
@@ -221,7 +228,34 @@ struct C_ReadFromImageRequest : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_WriteToImageRequest : public C_BlockIORequest {
+struct C_WriteToMetaRequest : public BlockGuard::C_BlockIORequest {
+  MetaStore<I> &meta_store;
+  uint64_t cache_block_id;
+  Policy *policy;
+
+  C_WriteToMetaRequest(CephContext *cct, MetaStore<I> &meta_store,
+		                uint64_t cache_block_id, Policy *policy,
+                        C_BlockIORequest *next_block_request)
+    : C_BlockIORequest(cct, next_block_request), meta_store(meta_store),
+    cache_block_id(cache_block_id), policy(policy) {
+  }
+
+  virtual void send() override {
+    ldout(cct, 20) << "(" << get_name() << "): "
+                   << "cache_block_id=" << cache_block_id << dendl;
+
+    bufferlist meta_bl;
+    policy->entry_to_bufferlist(cache_block_id, &meta_bl);
+    ldout(cct, 20) << "entry_to_bufferlist bl:" << meta_bl << dendl;
+    meta_store.write_block(cache_block_id, std::move(meta_bl), this);
+  }
+  virtual const char *get_name() const override {
+    return "C_WriteToMetaRequest";
+  }
+};
+
+template <typename I>
+struct C_WriteToImageRequest : public BlockGuard::C_BlockIORequest {
   ImageWriteback<I> &image_writeback;
   BlockGuard::BlockIO block_io;
   const bufferlist &bl;
@@ -259,7 +293,7 @@ struct C_WriteToImageRequest : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_ReadBlockFromCacheRequest : public C_BlockIORequest {
+struct C_ReadBlockFromCacheRequest : public BlockGuard::C_BlockIORequest {
   ImageStore<I> &image_store;
   uint64_t block;
   uint32_t block_size;
@@ -285,7 +319,7 @@ struct C_ReadBlockFromCacheRequest : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_ReadBlockFromImageRequest : public C_BlockIORequest {
+struct C_ReadBlockFromImageRequest : public BlockGuard::C_BlockIORequest {
   ImageWriteback<I> &image_writeback;
   uint64_t block;
   bufferlist *block_bl;
@@ -310,7 +344,7 @@ struct C_ReadBlockFromImageRequest : public C_BlockIORequest {
   }
 };
 
-struct C_CopyFromBlockBuffer : public C_BlockIORequest {
+struct C_CopyFromBlockBuffer : public BlockGuard::C_BlockIORequest {
   BlockGuard::BlockIO block_io;
   const bufferlist &block_bl;
   ExtentBuffers *extent_buffers;
@@ -338,7 +372,7 @@ struct C_CopyFromBlockBuffer : public C_BlockIORequest {
   }
 };
 
-struct C_ModifyBlockBuffer : public C_BlockIORequest {
+struct C_ModifyBlockBuffer : public BlockGuard::C_BlockIORequest {
   BlockGuard::BlockIO block_io;
   const bufferlist &bl;
   bufferlist *block_bl;
@@ -383,7 +417,7 @@ struct C_ModifyBlockBuffer : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_AppendEventToJournal : public C_BlockIORequest {
+struct C_AppendEventToJournal : public BlockGuard::C_BlockIORequest {
   JournalStore<I> &journal_store;
   uint64_t tid;
   uint64_t block;
@@ -409,7 +443,7 @@ struct C_AppendEventToJournal : public C_BlockIORequest {
 };
 
 template <typename I>
-struct C_DemoteBlockToJournal : public C_BlockIORequest {
+struct C_DemoteBlockToJournal : public BlockGuard::C_BlockIORequest {
   JournalStore<I> &journal_store;
   uint64_t block;
   const bufferlist &bl;
@@ -464,8 +498,14 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
     // have 1024 4K requests to read a single object)
 
     // NOTE: block guard active -- must be released after IO completes
-    C_BlockIORequest *req = new C_ReleaseBlockGuard(cct, block_io.block,
-                                                         release_block, this);
+    BlockGuard::C_BlockIORequest *req = new C_ReleaseBlockGuard(cct, block_io.block,
+                                                         release_block, this, std::move(block_io));
+    BlockGuard::C_BlockIORequest *orig_tail_block_io_req = nullptr;
+    if(block_io.tail_block_io_request != nullptr) {
+      orig_tail_block_io_req = block_io.tail_block_io_request;
+    }
+    block_io.tail_block_io_request = req;
+
     switch (policy_map_result) {
     case POLICY_MAP_RESULT_HIT:
       req = new C_ReadFromCacheRequest<I>(cct, image_store, std::move(block_io),
@@ -494,7 +534,20 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
     default:
       assert(false);
     }
-    req->send();
+    //chendi: schedule send on another tread, and check if we can continue
+    if(orig_tail_block_io_req != nullptr)
+      orig_tail_block_io_req->next_block_request = req;
+    if(!block_io.in_process) {
+      ldout(cct, 20) << "block_io: "<< block_io.block << " is not in process, will schedule" << dendl;
+      block_io.in_process = true;
+      image_ctx.pcache_op_work_queue->queue(new FunctionContext( 
+        [req](int r) {
+	  req->send();
+	}), 0);
+    }else{
+      ldout(cct, 20) << "block_io: "<< block_io.block << " is in process, skip schedule" << dendl;
+    }
+    //req->send();
   }
 
   virtual void finish(int r) override {
@@ -547,10 +600,13 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
     // have 1024 4K requests to read a single object)
 
     // NOTE: block guard active -- must be released after IO completes
-    C_BlockIORequest *req = new C_ReleaseBlockGuard(cct, block_io.block,
-                                                         release_block, this);
-    req = new C_WriteToImageRequest<I>(cct, image_writeback,
-                                         std::move(block_io), bl, req);
+    BlockGuard::C_BlockIORequest *req = new C_ReleaseBlockGuard(cct, block_io.block,
+                                                         release_block, this, std::move(block_io));
+    BlockGuard::C_BlockIORequest *orig_tail_block_io_req = nullptr;
+    if(block_io.tail_block_io_request!=nullptr) {
+      orig_tail_block_io_req = block_io.tail_block_io_request;
+    }
+    block_io.tail_block_io_request = req;
 
     if (policy_map_result == POLICY_MAP_RESULT_HIT) {
       req = new C_DemoteFromCache<I>(cct, image_store, release_block,
@@ -608,7 +664,20 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
       }
     }
 */
-    req->send();
+    //req->send();
+    //chendi: schedule send on another tread, and check if we can continue
+    if (orig_tail_block_io_req != nullptr)
+      orig_tail_block_io_req->next_block_request = req;
+    if(!block_io.in_process) {
+      ldout(cct, 1) << "block_io: "<< block_io.block << " is not in process, will schedule" << dendl;
+      block_io.in_process = true;
+      image_ctx.pcache_op_work_queue->queue(new FunctionContext( 
+        [req](int r) { 
+	  req->send(); 
+	}), 0);
+    }else{
+      ldout(cct, 1) << "block_io: "<< block_io.block << " is in process, will skip schedule" << dendl;
+    }
   }
 };
 
@@ -761,6 +830,15 @@ FileImageCache<I>::FileImageCache(ImageCtx &image_ctx)
     m_release_block(std::bind(&FileImageCache<I>::release_block, this,
                               std::placeholders::_1)),
     m_lock("librbd::cache::FileImageCache::m_lock") {
+  CephContext *cct = m_image_ctx.cct;
+  uint8_t write_mode = cct->_conf->rbd_persistent_cache_enabled?1:0;
+  m_policy->set_write_mode(write_mode);
+  //chendi: create threadpool for parallel cache process
+  ThreadPoolSingleton *thread_pool_singleton;
+  cct->lookup_or_create_singleton_object<ThreadPoolSingleton>(
+    thread_pool_singleton, "librbd::cache::thread_pool");
+  m_image_ctx.pcache_op_work_queue = thread_pool_singleton->pcache_op_work_queue; 
+  
 }
 
 template <typename I>
