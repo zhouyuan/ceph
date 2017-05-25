@@ -44,6 +44,27 @@ bool is_block_aligned(const ImageCache::Extents &image_extents) {
   return true;
 }
 
+class ThreadPoolSingleton : public ThreadPool {
+public:
+  ContextWQ *pcache_op_work_queue;
+
+  explicit ThreadPoolSingleton(CephContext *cct)
+    //TODO(): make this configuable
+    : ThreadPool(cct, "librbd::cache::thread_pool", "tp_librbd_cache", 32,
+                 "pcache_threads"),
+      pcache_op_work_queue(new ContextWQ("librbd::pcache_op_work_queue",
+                                  cct->_conf->rbd_op_thread_timeout,
+                                  this)) {
+    start();
+  }
+  ~ThreadPoolSingleton() override {
+    pcache_op_work_queue->drain();
+    delete pcache_op_work_queue;
+
+    stop();
+  }
+};
+
 struct C_BlockIORequest : public Context {
   CephContext *cct;
   C_BlockIORequest *next_block_request;
@@ -820,6 +841,13 @@ FileImageCache<I>::FileImageCache(ImageCtx &image_ctx)
   CephContext *cct = m_image_ctx.cct;
   uint8_t write_mode = cct->_conf->rbd_persistent_cache_writeback?1:0;
   m_policy->set_write_mode(write_mode);
+  //chendi: create threadpool for parallel cache process
+  //FIXME: delete this singleton
+  ThreadPoolSingleton *thread_pool_singleton;
+  cct->lookup_or_create_singleton_object<ThreadPoolSingleton>(
+    thread_pool_singleton, "librbd::cache::thread_pool");
+  m_image_ctx.pcache_op_work_queue = thread_pool_singleton->pcache_op_work_queue;
+
 }
 
 template <typename I>
@@ -1079,7 +1107,7 @@ void FileImageCache<I>::map_blocks(IOType io_type, Extents &&image_extents,
 
   // map block IO requests to the cache or backing image based upon policy
   for (auto &block_io : block_ios) {
-    map_block(true, std::move(block_io));
+    map_block(false, std::move(block_io));
   }
 
   // advance the policy statistics
@@ -1129,9 +1157,9 @@ void FileImageCache<I>::release_block(uint64_t block) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "block=" << block << dendl;
 
-  Mutex::Locker locker(m_lock);
-  m_block_guard.release(block, &m_detained_block_ios);
-  wake_up();
+  //Mutex::Locker locker(m_lock);
+  //m_block_guard.release(block, &m_detained_block_ios);
+  //wake_up();
 }
 
 template <typename I>

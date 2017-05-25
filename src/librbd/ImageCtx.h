@@ -158,6 +158,7 @@ namespace librbd {
     EventSocket event_socket;
 
     ContextWQ *op_work_queue;
+    ContextWQ *pcache_op_work_queue;
 
     // Configuration
     static const string METADATA_CONF_PREFIX;

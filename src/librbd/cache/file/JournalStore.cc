@@ -32,9 +32,9 @@ template <typename I>
 JournalStore<I>::JournalStore(I &image_ctx, BlockGuard &block_guard,
                               MetaStore<I> &metastore)
   : m_image_ctx(image_ctx), m_block_guard(block_guard), m_metastore(metastore),
-    m_event_file(image_ctx, *image_ctx.op_work_queue,
+    m_event_file(image_ctx, *image_ctx.pcache_op_work_queue,
                  image_ctx.id + ".journal_events"),
-    m_block_file(image_ctx, *image_ctx.op_work_queue,
+    m_block_file(image_ctx, *image_ctx.pcache_op_work_queue,
                  image_ctx.id + ".journal_blocks"),
     m_lock("librbd::cache::file::JournalStore::m_lock") {
   CephContext *cct = m_image_ctx.cct;
