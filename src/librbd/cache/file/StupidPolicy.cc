@@ -30,23 +30,23 @@ StupidPolicy<I>::StupidPolicy(I &image_ctx, BlockGuard &block_guard)
 }
 
 template <typename I>
-void StupidPolicy<I>::set_write_mode(uint8_t write_mode) {
+void StupidPolicy<I>::set_cache_mode(uint8_t cache_mode) {
   CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "write_mode=" << write_mode << dendl;
+  ldout(cct, 20) << "cache_mode=" << cache_mode << dendl;
 
   // TODO change mode on-the-fly
   Mutex::Locker locker(m_lock);
-  m_write_mode = write_mode;
+  m_cache_mode = cache_mode;
 
 }
 
 template <typename I>
-uint8_t StupidPolicy<I>::get_write_mode() {
+uint8_t StupidPolicy<I>::get_cache_mode() {
   CephContext *cct = m_image_ctx.cct;
 
   // TODO change mode on-the-fly
   Mutex::Locker locker(m_lock);
-  return m_write_mode;
+  return m_cache_mode;
 
 }
 
@@ -64,7 +64,7 @@ void StupidPolicy<I>::set_block_count(uint64_t block_count) {
 template <typename I>
 int StupidPolicy<I>::invalidate(uint64_t block) {
   CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "block=" << block << dendl;
+  ldout(cct, 20) << "invalidate block=" << block << dendl;
 
   // TODO handle case where block is in prison (shouldn't be possible
   // if core properly registered blocks)
@@ -202,6 +202,8 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
     // cache hit -- move entry to the front of the queue
     ldout(cct, 20) << "cache hit" << dendl;
     *policy_map_result = POLICY_MAP_RESULT_HIT;
+    if (IO_TYPE_WRITE == io_type)
+      return 0;
 
     entry = entry_it->second;
     LRUList *lru;
@@ -213,6 +215,11 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
 
     lru->remove(entry);
     lru->insert_head(entry);
+    return 0;
+  }
+
+  if (IO_TYPE_WRITE == io_type) {
+    *policy_map_result = POLICY_MAP_RESULT_MISS;
     return 0;
   }
 
