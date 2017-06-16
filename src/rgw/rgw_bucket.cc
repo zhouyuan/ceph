@@ -20,6 +20,7 @@
 #include "rgw_bucket.h"
 #include "rgw_user.h"
 #include "rgw_string.h"
+#include "rgw_multi.h"
 
 #include "include/rados/librados.hpp"
 // until everything is moved from rgw_common
@@ -540,31 +541,39 @@ int rgw_remove_bucket(RGWRados *store, rgw_bucket& bucket, bool delete_children)
   if (ret < 0)
     return ret;
 
-
   RGWRados::Bucket target(store, info);
   RGWRados::Bucket::List list_op(&target);
+  CephContext *cct = store->ctx();
+  int max = 1000;
 
   list_op.params.list_versions = true;
 
-  if (delete_children) {
-    int max = 1000;
+  do {
+    objs.clear();
+
     ret = list_op.list_objects(max, &objs, &common_prefixes, NULL);
     if (ret < 0)
       return ret;
 
-    while (!objs.empty()) {
-      std::vector<RGWObjEnt>::iterator it = objs.begin();
-      for (; it != objs.end(); ++it) {
-        ret = rgw_remove_object(store, info, bucket, (*it).key);
-        if (ret < 0)
-          return ret;
-      }
-      objs.clear();
+    if (!objs.empty() && !delete_children) {
+      lderr(store->ctx()) << "ERROR: could not remove non-empty bucket " << bucket.name << dendl;
+      return -ENOTEMPTY;
+    }
 
-      ret = list_op.list_objects(max, &objs, &common_prefixes, NULL);
+    for (const auto& obj : objs) {
+      rgw_obj_key key(obj.key);
+      ret = rgw_remove_object(store, info, bucket, key);
       if (ret < 0)
         return ret;
     }
+
+  } while (!objs.empty());
+
+  string prefix, delimiter;
+
+  ret = abort_bucket_multiparts(store, cct, info, prefix, delimiter);
+  if (ret < 0) {
+    return ret;
   }
 
   ret = rgw_bucket_sync_user_stats(store, bucket.tenant, bucket.name);
@@ -620,6 +629,7 @@ int rgw_remove_bucket_bypass_gc(RGWRados *store, rgw_bucket& bucket,
   map<string, bool> common_prefixes;
   RGWBucketInfo info;
   RGWObjectCtx obj_ctx(store);
+  CephContext *cct = store->ctx();
 
   string bucket_ver, master_ver;
 
@@ -631,6 +641,12 @@ int rgw_remove_bucket_bypass_gc(RGWRados *store, rgw_bucket& bucket,
   if (ret < 0)
     return ret;
 
+  string prefix, delimiter;
+
+  ret = abort_bucket_multiparts(store, cct, info, prefix, delimiter);
+  if (ret < 0) {
+    return ret;
+  }
 
   RGWRados::Bucket target(store, info);
   RGWRados::Bucket::List list_op(&target);
