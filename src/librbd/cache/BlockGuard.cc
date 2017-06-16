@@ -123,8 +123,18 @@ int BlockGuard::release(uint64_t block, BlockIOs *block_ios) {
                    << "free_slots=" << m_free_detained_blocks.size() << dendl;
 
   if (!detained_block.block_ios.empty()) {
-    block_ios->push_back(std::move(detained_block.block_ios.front()));
-    detained_block.block_ios.pop_front();
+
+      ldout(m_cct, 20) << "AAAAAApush back block=" << detained_block.block_ios.front()<< dendl;
+      block_ios->push_back(std::move(detained_block.block_ios.front()));
+      detained_block.block_ios.pop_front();
+/*
+    int orig_size = detained_block.block_ios.size() - 1;
+    for (int i = 1; i <= orig_size; i++) {
+      ldout(m_cct, 20) << "AAAAAApush back block=" << i <<" " << detained_block.block_ios.front()<< dendl;
+      block_ios->push_back(std::move(detained_block.block_ios.front()));
+      detained_block.block_ios.pop_front();
+    }
+*/
   } else {
     m_detained_blocks.erase(detained_block_it);
     m_free_detained_blocks.push_back(detained_block);
