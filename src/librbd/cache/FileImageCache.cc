@@ -72,35 +72,42 @@ struct C_ReleaseBlockGuard : public BlockGuard::C_BlockIORequest {
   C_ReleaseBlockGuard(CephContext *cct, uint64_t block,
                       ReleaseBlock &release_block,
                       BlockGuard::C_BlockRequest *block_request,
-		      BlockGuard::BlockIO &&block_io)
+		      BlockGuard::BlockIO &block_io)
     : C_BlockIORequest(cct, nullptr), block(block),
       release_block(release_block), block_request(block_request), block_io(block_io) {
   }
 
   virtual void send() override {
-    complete(0);
+    ldout(cct, 20) << "(" << get_name()
+                  << " , this req is " << this
+                  << " , next req is " << next_block_request
+                  << " , block_io = " << block_io.block
+                  << dendl;
+    auto block_info = block_io.block_info;
+    //Mutex::Locker locker(block_info->lock);
+    block_info->lock.lock();
+    if(next_block_request == nullptr 
+	&& block_info->tail_block_io_request == this) {
+      block_info->tail_block_io_request = nullptr;
+      block_info->in_process = false;
+    }
+    finish(0);
+    block_info->lock.unlock();
+    if(next_block_request != nullptr) {
+      next_block_request->send();
+    }
   }
   virtual const char *get_name() const override {
     return "C_ReleaseBlockGuard";
   }
 
   virtual void finish(int r) override {
-    ldout(cct, 1) << "(" << get_name() << "): block_io = " << block_io.block << ", r=" << r << dendl;
-
-    if(next_block_request == nullptr 
-	&& block_io.tail_block_io_request == this) {
-      block_io.tail_block_io_request = nullptr;
-      block_io.in_process = false;
-    }
+    ldout(cct, 20) << "(" << get_name() << "): block_io = " << block_io.block << ", r=" << r << dendl;
     // IO operation finished -- release guard
     release_block(block);
 
     // complete block request
     block_request->complete_request(r);
-
-    if(next_block_request != nullptr) {
-      next_block_request->send();
-    }
   }
 };
 
@@ -152,12 +159,12 @@ struct C_DemoteFromCache : public BlockGuard::C_BlockIORequest {
     return "C_DemoteFromCache";
   }
 
-  virtual void finish(int r) {
+  /*virtual void finish(int r) {
     // IO against the demote block was detained -- release
     release_block(block);
 
     C_BlockIORequest::finish(r);
-  }
+  }*/
 };
 
 template <typename I>
@@ -245,7 +252,7 @@ struct C_WriteToMetaRequest : public BlockGuard::C_BlockIORequest {
                    << "cache_block_id=" << cache_block_id << dendl;
 
     bufferlist meta_bl;
-    policy->entry_to_bufferlist(cache_block_id, &meta_bl);
+    //policy->entry_to_bufferlist(cache_block_id, &meta_bl);
     ldout(cct, 20) << "entry_to_bufferlist bl:" << meta_bl << dendl;
     meta_store.write_block(cache_block_id, std::move(meta_bl), this);
   }
@@ -499,12 +506,15 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
 
     // NOTE: block guard active -- must be released after IO completes
     BlockGuard::C_BlockIORequest *req = new C_ReleaseBlockGuard(cct, block_io.block,
-                                                         release_block, this, std::move(block_io));
+                                                         release_block, this, block_io);
     BlockGuard::C_BlockIORequest *orig_tail_block_io_req = nullptr;
-    if(block_io.tail_block_io_request != nullptr) {
-      orig_tail_block_io_req = block_io.tail_block_io_request;
+    auto block_info = block_io.block_info;
+    //Mutex::Locker locker(block_info->lock);
+    std::lock_guard<std::mutex> lock(block_info->lock);
+    if(block_info->tail_block_io_request != nullptr) {
+      orig_tail_block_io_req = block_info->tail_block_io_request;
     }
-    block_io.tail_block_io_request = req;
+    block_info->tail_block_io_request = req;
 
     switch (policy_map_result) {
     case POLICY_MAP_RESULT_HIT:
@@ -535,17 +545,18 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
       assert(false);
     }
     //chendi: schedule send on another tread, and check if we can continue
-    if(orig_tail_block_io_req != nullptr)
+    if(orig_tail_block_io_req != nullptr) {
       orig_tail_block_io_req->next_block_request = req;
-    if(!block_io.in_process) {
-      ldout(cct, 20) << "block_io: "<< block_io.block << " is not in process, will schedule" << dendl;
-      block_io.in_process = true;
+    }
+    if(!block_info->in_process) {
+      ldout(cct, 10) << "block_io: "<< block_io << " is not in process, will schedule" << dendl;
+      block_info->in_process = true;
       image_ctx.pcache_op_work_queue->queue(new FunctionContext( 
         [req](int r) {
 	  req->send();
 	}), 0);
     }else{
-      ldout(cct, 20) << "block_io: "<< block_io.block << " is in process, skip schedule" << dendl;
+      ldout(cct, 10) << "block_io: "<< block_io << " is in process, skip schedule" << dendl;
     }
     //req->send();
   }
@@ -601,17 +612,21 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
 
     // NOTE: block guard active -- must be released after IO completes
     BlockGuard::C_BlockIORequest *req = new C_ReleaseBlockGuard(cct, block_io.block,
-                                                         release_block, this, std::move(block_io));
+                                                         release_block, this, block_io);
+    auto block_info = block_io.block_info;
+    std::lock_guard<std::mutex> lock(block_info->lock);
     BlockGuard::C_BlockIORequest *orig_tail_block_io_req = nullptr;
-    if(block_io.tail_block_io_request!=nullptr) {
-      orig_tail_block_io_req = block_io.tail_block_io_request;
+    if(block_info->tail_block_io_request!=nullptr) {
+      orig_tail_block_io_req = block_info->tail_block_io_request;
     }
-    block_io.tail_block_io_request = req;
+    block_info->tail_block_io_request = req;
 
     if (policy_map_result == POLICY_MAP_RESULT_HIT) {
       req = new C_DemoteFromCache<I>(cct, image_store, release_block,
                                      block_io.block, req);
     }
+    req = new C_WriteToImageRequest<I>(cct, image_writeback,
+                                     std::move(block_io), bl, req);
 /*
     if (policy_map_result == POLICY_MAP_RESULT_MISS) {
       req = new C_WriteToImageRequest<I>(cct, image_writeback,
@@ -668,15 +683,16 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
     //chendi: schedule send on another tread, and check if we can continue
     if (orig_tail_block_io_req != nullptr)
       orig_tail_block_io_req->next_block_request = req;
-    if(!block_io.in_process) {
-      ldout(cct, 1) << "block_io: "<< block_io.block << " is not in process, will schedule" << dendl;
-      block_io.in_process = true;
+    if(!block_info->in_process) {
+      ldout(cct, 10) << "block_io: "<< block_info->block << " is not in process, will schedule" << dendl;
+      ldout(cct, 20) << "block_io: "<< block_info->block << " orig_req: " << orig_tail_block_io_req << "next_req: " << req << dendl;
+      block_info->in_process = true;
       image_ctx.pcache_op_work_queue->queue(new FunctionContext( 
         [req](int r) { 
 	  req->send(); 
 	}), 0);
     }else{
-      ldout(cct, 1) << "block_io: "<< block_io.block << " is in process, will skip schedule" << dendl;
+      ldout(cct, 10) << "block_io: "<< block_info->block << " is in process, will skip schedule" << dendl;
     }
   }
 };
@@ -825,14 +841,14 @@ struct C_WritebackRequest : public Context {
 template <typename I>
 FileImageCache<I>::FileImageCache(ImageCtx &image_ctx)
   : m_image_ctx(image_ctx), m_image_writeback(image_ctx),
-    m_block_guard(image_ctx.cct, 256, BLOCK_SIZE),
+    m_block_guard(image_ctx.cct, image_ctx.cct->_conf->rbd_persistent_cache_size, BLOCK_SIZE),
     m_policy(new StupidPolicy<I>(m_image_ctx, m_block_guard)),
     m_release_block(std::bind(&FileImageCache<I>::release_block, this,
                               std::placeholders::_1)),
     m_lock("librbd::cache::FileImageCache::m_lock") {
   CephContext *cct = m_image_ctx.cct;
-  uint8_t write_mode = cct->_conf->rbd_persistent_cache_enabled?1:0;
-  m_policy->set_write_mode(write_mode);
+  //uint8_t write_mode = cct->_conf->rbd_persistent_cache_enabled?1:0;
+  //m_policy->set_write_mode(write_mode);
   //chendi: create threadpool for parallel cache process
   ThreadPoolSingleton *thread_pool_singleton;
   cct->lookup_or_create_singleton_object<ThreadPoolSingleton>(
@@ -887,6 +903,7 @@ void FileImageCache<I>::aio_write(Extents &&image_extents,
 template <typename I>
 void FileImageCache<I>::aio_discard(uint64_t offset, uint64_t length,
                                     bool skip_partial_discard, Context *on_finish) {
+    //Mutex::Locker locker(block_info->lock);
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "offset=" << offset << ", "
                  << "length=" << length << ", "
@@ -1074,7 +1091,6 @@ template <typename I>
 void FileImageCache<I>::map_block(bool detain_block,
                                   BlockGuard::BlockIO &&block_io) {
   CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "block_io=[" << block_io << "]" << dendl;
 
   int r;
   if (detain_block) {
@@ -1086,12 +1102,12 @@ void FileImageCache<I>::map_block(bool detain_block,
       return;
     } else if (r > 0) {
       ldout(cct, 20) << "block already detained" << dendl;
-      return;
+      //return;
     }
   }
 
   IOType io_type = static_cast<IOType>(block_io.io_type);
-  if ((io_type == IO_TYPE_WRITE || io_type == IO_TYPE_DISCARD) &&
+  /*if ((io_type == IO_TYPE_WRITE || io_type == IO_TYPE_DISCARD) &&
       block_io.tid == 0) {
     // TODO support non-journal mode / writethrough-only
     r = m_journal_store->allocate_tid(&block_io.tid);
@@ -1101,7 +1117,7 @@ void FileImageCache<I>::map_block(bool detain_block,
       m_detained_block_ios.emplace_back(std::move(block_io));
       return;
     }
-  }
+  }*/
 
   PolicyMapResult policy_map_result;
   uint64_t replace_cache_block;

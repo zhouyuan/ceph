@@ -15,6 +15,7 @@
 #include <list>
 #include <string>
 #include <vector>
+#include <mutex>
 #include "include/assert.h"
 
 struct CephContext;
@@ -83,29 +84,35 @@ public:
     virtual const char *get_name() const = 0;
   };
 
-  struct BlockIO {
-    // TODO intrusive_list
-
-    BlockIO()
-      : tail_block_io_request(nullptr), in_process(false) {
+  struct Block {
+    Block( uint64_t block )
+     : /*lock("librbd::cache::BlockGuard::Block::lock"),*/
+       block(block), status(0), tail_block_io_request(nullptr),
+       in_process(false) {
     }
-    BlockIO(uint64_t block, BlockIOExtents &&extents)
-      : block(block), extents(extents), tail_block_io_request(nullptr), in_process(false) {
-    }
-
-    uint64_t tid;
+    //Mutex lock;
+    std::mutex lock;
     uint64_t block;
-    BlockIOExtents extents;
-
-    IOType io_type : 2;     ///< IO type for deferred IO request
-    bool partial_block : 1; ///< true if not full block request
-    C_BlockRequest *block_request;
+    uint8_t status; //0x00 non-exist, 0x01 clean, 0x02 dirty
     C_BlockIORequest *tail_block_io_request; ///< used to track ios on this block
     bool in_process;        ///< true if this block has been in processing by thread
   };
+
+  typedef std::unordered_map<uint64_t, Block*> BlockToBlocksMap;
+  struct BlockIO {
+    // TODO intrusive_list
+    Block *block_info;
+    uint64_t block;
+    uint64_t tid;
+    BlockIOExtents extents;
+    IOType io_type : 2;     ///< IO type for deferred IO request
+    bool partial_block : 1; ///< true if not full block request
+
+    C_BlockRequest *block_request;
+  };
   typedef std::list<BlockIO> BlockIOs;
 
-  BlockGuard(CephContext *cct, uint32_t max_blocks, uint32_t block_size);
+  BlockGuard(CephContext *cct, uint64_t cache_size, uint32_t block_size);
   BlockGuard(const BlockGuard&) = delete;
   BlockGuard &operator=(const BlockGuard&) = delete;
 
@@ -141,7 +148,6 @@ public:
   }
 
 private:
-
   struct DetainedBlock : public boost::intrusive::list_base_hook<>,
                          public boost::intrusive::unordered_set_base_hook<> {
     uint64_t block;
@@ -171,6 +177,10 @@ private:
   DetainedBlocks m_free_detained_blocks;
   BlockToDetainedBlocksBuckets m_detained_blocks_buckets;
   BlockToDetainedBlocks m_detained_blocks;
+
+  //chendi: add an universal map to pre-allocate in memory data for each block
+  BlockToBlocksMap m_Block_map;
+  
 };
 
 } // namespace cache
