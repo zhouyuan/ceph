@@ -1,4 +1,5 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
 #include "librbd/cache/file/SyncFile.h"
@@ -41,7 +42,7 @@ SyncFile<I>::~SyncFile() {
 template <typename I>
 void SyncFile<I>::open(Context *on_finish) {
   while (true) {
-    m_fd = ::open(m_name.c_str(), O_CREAT | O_NOATIME | O_RDWR | O_SYNC,
+    m_fd = ::open(m_name.c_str(), O_CREAT | O_DIRECT | O_NOATIME | O_RDWR | O_SYNC,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
     if (m_fd == -1) {
       int r = -errno;
@@ -125,14 +126,25 @@ int SyncFile<I>::write(uint64_t offset, const ceph::bufferlist &bl,
   ldout(cct, 20) << "offset=" << offset << ", "
                  << "length=" << bl.length() << dendl;
 
-  int r = bl.write_fd(m_fd, offset);
+  //int r = bl.write_fd(m_fd, offset);
+  //todo: bl is not aligned in one 4096 block
+  char *aligned_buffer = (char*)aligned_alloc(4096, sizeof(char)*4096);
+  int r;
+  /*r = posix_memalign((void**)&aligned_buffer, sizeof(char)*4096, 1);
+  if( r < 0 ){
+    return -r;
+  }*/
+  bl.copy( 0, bl.length(), aligned_buffer );
+  r = pwrite(m_fd, aligned_buffer, 4096, offset); 
   if (r < 0) {
-    return r;
+    free(aligned_buffer);
+    return -r;
   }
 
   if (sync) {
     r = fdatasync();
   }
+  free(aligned_buffer);
   return r;
 }
 
@@ -145,23 +157,34 @@ int SyncFile<I>::read(uint64_t offset, uint64_t length, ceph::bufferlist *bl) {
 
   int r = 0;
   char *buffer = reinterpret_cast<char *>(bp.c_str());
+  char *aligned_buffer = (char*)aligned_alloc(4096, sizeof(char)*4096);
+  /*char *aligned_buffer;
+  r = posix_memalign((void**)&aligned_buffer, sizeof(char)*4096, 1);
+  if( r < 0 ){
+    return -r;
+  }*/
+  uint64_t left = length;
+  ssize_t ret_val;
   uint64_t count = 0;
-  while (count < length) {
-    ssize_t ret_val = pread64(m_fd, buffer, length - count, offset + count);
-    if (ret_val == 0) {
-      break;
-    } else if (ret_val < 0) {
-      r = -errno;
+  uint64_t cpy_length;
+  do {
+    //todo: offset is not aligned.
+    ret_val = pread64(m_fd, aligned_buffer, 4096, offset);
+    if( ret_val < 0 ){
+      r = -ret_val;
       if (r == -EINTR) {
         continue;
       }
-
+      free(aligned_buffer);
       return r;
     }
-
-    count += ret_val;
-    buffer += ret_val;
-  }
+    //ret_val = pread64(m_fd, buffer, length - count, offset + count);
+    cpy_length = left <= 4096 ? left : 4096;
+    memcpy(buffer + count, aligned_buffer, cpy_length);
+    count += cpy_length;
+    left -= cpy_length;
+  } while ( left );
+  free(aligned_buffer);
   return count;
 }
 
