@@ -192,6 +192,10 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
     lru->insert_head(entry);
     return 0;
   }
+  if (io_type == IO_TYPE_WRITE) {
+    *policy_map_result = POLICY_MAP_RESULT_MISS;
+    return 0;
+  }
 
   // cache miss
   entry = reinterpret_cast<Entry*>(m_free_lru.get_head());
