@@ -1,3 +1,7 @@
+set(libos_cache_srcs
+  CacheStore/SyncFile.cc)
+add_library(cachestore STATIC ${libos_cache_srcs})
+
 if(HAVE_LIBXFS)
   set(libos_xfs_srcs
     filestore/XfsFileStoreBackend.cc
