@@ -15,6 +15,7 @@
 #include "librbd/mirror/DisableRequest.h"
 #include "librbd/operation/SnapshotRemoveRequest.h"
 #include "librbd/operation/TrimRequest.h"
+#include "librbd/cache/FileImageCache.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -437,7 +438,13 @@ void RemoveRequest<I>::handle_trim_image(int r) {
     return;
   }
 
-  detach_child();
+  //remove cache
+  if (m_image_ctx->persistent_cache_enabled) {
+    remove_image_cache();
+  } else {
+    detach_child();
+  }
+  return nullptr;
 }
 
 template<typename I>
@@ -714,6 +721,24 @@ void RemoveRequest<I>::handle_remove_v1_image(int r) {
   if (!m_old_format) {
     remove_v2_image();
   }
+
+}
+
+template<typename I>
+void RemoveRequest<I>::remove_image_cache() {
+  ldout(m_cct, 20) << dendl;
+
+  Context *ctx = new FunctionContext([this] (int r) {
+      handle_remove_image_cache(r);
+  });
+  m_image_ctx->image_cache->remove(ctx);
+}
+
+template<typename I>
+void RemoveRequest<I>::handle_remove_image_cache(int r) {
+  ldout(m_cct, 20) << ": r=" << r << dendl;
+  detach_child();
+  return;
 }
 
 template<typename I>
