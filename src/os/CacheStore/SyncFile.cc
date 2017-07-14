@@ -53,6 +53,16 @@ void SyncFile::open(Context *on_finish) {
   on_finish->complete(0);
 }
 
+bool SyncFile::try_open() {
+  m_fd = ::open(m_name.c_str(), O_DIRECT | O_NOATIME | O_RDWR | O_SYNC,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+  if (m_fd < 0) {
+    ::close(m_fd);
+    return false;
+  }
+  return true;
+}
+
 void SyncFile::close(Context *on_finish) {
   assert(m_fd >= 0);
   while (true) {

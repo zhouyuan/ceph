@@ -26,28 +26,13 @@ namespace file {
  */
 template <typename ImageCtxT>
 class StupidPolicy : public Policy {
-public:
-  StupidPolicy(ImageCtxT &image_ctx, BlockGuard &block_guard);
-
-  virtual void set_block_count(uint64_t block_count);
-
-  virtual int invalidate(uint64_t block);
-
-  virtual bool contains_dirty() const;
-  virtual bool is_dirty(uint64_t block) const;
-  virtual void set_dirty(uint64_t block);
-  virtual void clear_dirty(uint64_t block);
-
-  virtual int map(IOType io_type, uint64_t block, bool partial_block,
-                  PolicyMapResult *policy_map_result,
-                  uint64_t *replace_cache_block);
-  virtual void tick();
-
 private:
 
   struct Entry : public LRUObject {
-    uint64_t block = 0;
-    bool dirty = false;
+    uint64_t block;
+    bool in_base_cache;
+    Entry() : block(0), in_base_cache(false) {
+    }
   };
 
   typedef std::vector<Entry> Entries;
@@ -55,6 +40,7 @@ private:
 
   ImageCtxT &m_image_ctx;
   BlockGuard &m_block_guard;
+  uint64_t m_block_size = 4096;
 
   mutable Mutex m_lock;
   uint64_t m_block_count = 0;
@@ -64,7 +50,30 @@ private:
 
   LRUList m_free_lru;
   LRUList m_clean_lru;
-  mutable LRUList m_dirty_lru;
+
+public:
+  StupidPolicy(ImageCtxT &image_ctx, BlockGuard &block_guard);
+
+  virtual void set_block_count(uint64_t block_count);
+
+  virtual int invalidate(uint64_t block);
+
+  virtual int map(IOType io_type, uint64_t block, bool partial_block,
+                  PolicyMapResult *policy_map_result,
+                  bool in_base_cache = false);
+  virtual void tick();
+  void set_to_base_cache(uint64_t block);
+  inline uint64_t offset_to_block(uint64_t offset) {
+    return offset / m_block_size;
+  }
+
+  inline uint64_t block_to_offset(uint64_t block) {
+    return block * m_block_size;
+  }
+  
+  inline uint64_t get_block_count(){
+    return m_block_count;
+  }
 
 };
 

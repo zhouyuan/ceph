@@ -52,6 +52,7 @@ public:
 
   void invalidate(Context *on_finish) override;
   void flush(Context *on_finish) override;
+  void load_snap_as_base(Context *on_finish, bool parent_cache_exists);
 
 private:
   typedef std::function<void(uint64_t)> ReleaseBlock;
@@ -59,11 +60,13 @@ private:
 
   ImageCtxT &m_image_ctx;
   ImageWriteback<ImageCtxT> m_image_writeback;
+  ImageWriteback<ImageCtxT> m_parent_snap_image_writeback;
   BlockGuard m_block_guard;
 
   file::Policy *m_policy = nullptr;
   file::MetaStore<ImageCtx> *m_meta_store = nullptr;
   file::ImageStore<ImageCtx> *m_image_store = nullptr;
+  file::ImageStore<ImageCtx> *m_parent_image_store = nullptr;
 
   util::AsyncOpTracker m_async_op_tracker;
 

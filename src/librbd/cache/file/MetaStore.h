@@ -25,14 +25,6 @@ public:
   void init(Context *on_finish);
   void shut_down(Context *on_finish);
 
-  inline uint64_t offset_to_block(uint64_t offset) {
-    return offset / m_block_size;
-  }
-
-  inline uint64_t block_to_offset(uint64_t block) {
-    return block * m_block_size;
-  }
-
 private:
   ImageCtxT &m_image_ctx;
   uint32_t m_block_size;

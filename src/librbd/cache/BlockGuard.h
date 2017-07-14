@@ -71,17 +71,24 @@ public:
     virtual void finish(int r) override {
       //ldout(cct, 20) << "(" << get_name() << "): r=" << r << dendl;
   
-      if (r < 0) {
-        // abort the chain of requests upon failure
-        next_block_request->complete(r);
-      } else {
-        // execute next request in chain
-        next_block_request->send();
+      if (next_block_request) {
+        if (r < 0) {
+          // abort the chain of requests upon failure
+          next_block_request->complete(r);
+        } else {
+          // execute next request in chain
+          next_block_request->send();
+        }
       }
     }
   
+    virtual void complete(int r) {
+      finish(r);
+      delete this;
+    }
     virtual void send() = 0;
     virtual const char *get_name() const = 0;
+    virtual void* get_buffer_ptr(){ return nullptr; }
   };
 
   struct Block {

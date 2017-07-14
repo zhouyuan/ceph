@@ -12,6 +12,7 @@ namespace cache {
 
 enum PolicyMapResult {
   POLICY_MAP_RESULT_HIT,    // block is already in cache
+  POLICY_MAP_RESULT_HIT_IN_BASE,    // block is already in base cache
   POLICY_MAP_RESULT_MISS,   // block not in cache, do not promote
   POLICY_MAP_RESULT_NEW,    // block not in cache, promote
   POLICY_MAP_RESULT_REPLACE // block not in cache, demote other block first
