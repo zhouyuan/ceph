@@ -20,8 +20,9 @@ StupidPolicy<I>::StupidPolicy(I &image_ctx, BlockGuard &block_guard)
   : m_image_ctx(image_ctx), m_block_guard(block_guard),
     m_lock("librbd::cache::file::StupidPolicy::m_lock") {
 
+  set_block_count(offset_to_block(image_ctx.size));
   // TODO support resizing of entries based on number of provisioned blocks
-  m_entries.resize(262144); // 1GB of storage
+  m_entries.resize(m_block_count); // 1GB of storage
   for (auto &entry : m_entries) {
     m_free_lru.insert_tail(&entry);
   }
@@ -56,11 +57,7 @@ int StupidPolicy<I>::invalidate(uint64_t block) {
   m_block_to_entries.erase(entry_it);
 
   LRUList *lru;
-  if (entry->dirty) {
-    lru = &m_dirty_lru;
-  } else {
-    lru = &m_clean_lru;
-  }
+  lru = &m_clean_lru;
   lru->remove(entry);
 
   m_free_lru.insert_tail(entry);
@@ -68,73 +65,15 @@ int StupidPolicy<I>::invalidate(uint64_t block) {
 }
 
 template <typename I>
-bool StupidPolicy<I>::contains_dirty() const {
-  Mutex::Locker locker(m_lock);
-  return m_dirty_lru.get_tail() != nullptr;
-}
-
-template <typename I>
-bool StupidPolicy<I>::is_dirty(uint64_t block) const {
-  Mutex::Locker locker(m_lock);
-  auto entry_it = m_block_to_entries.find(block);
-  assert(entry_it != m_block_to_entries.end());
-
-  bool dirty = entry_it->second->dirty;
-
-  CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "block=" << block << ", "
-                 << "dirty=" << dirty << dendl;
-  return dirty;
-}
-
-template <typename I>
-void StupidPolicy<I>::set_dirty(uint64_t block) {
-  CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "block=" << block << dendl;
-
-  Mutex::Locker locker(m_lock);
-  auto entry_it = m_block_to_entries.find(block);
-  assert(entry_it != m_block_to_entries.end());
-
-  Entry *entry = entry_it->second;
-  if (entry->dirty) {
-    return;
-  }
-
-  entry->dirty = true;
-  m_clean_lru.remove(entry);
-  m_dirty_lru.insert_head(entry);
-}
-
-template <typename I>
-void StupidPolicy<I>::clear_dirty(uint64_t block) {
-  CephContext *cct = m_image_ctx.cct;
-  ldout(cct, 20) << "block=" << block << dendl;
-
-  Mutex::Locker locker(m_lock);
-  auto entry_it = m_block_to_entries.find(block);
-  assert(entry_it != m_block_to_entries.end());
-
-  Entry *entry = entry_it->second;
-  if (!entry->dirty) {
-    return;
-  }
-
-  entry->dirty = false;
-  m_dirty_lru.remove(entry);
-  m_clean_lru.insert_head(entry);
-}
-
-template <typename I>
 int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
                          PolicyMapResult *policy_map_result,
-                         uint64_t *replace_cache_block) {
+                         bool in_base_cache) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "block=" << block << dendl;
 
   Mutex::Locker locker(m_lock);
   if (block >= m_block_count) {
-    lderr(cct) << "block outside of valid range" << dendl;
+    ldout(cct, 1) << "block outside of valid range" << dendl;
     *policy_map_result = POLICY_MAP_RESULT_MISS;
     // TODO return error once resize handling is in-place
     return 0;
@@ -144,23 +83,30 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
   auto entry_it = m_block_to_entries.find(block);
   if (entry_it != m_block_to_entries.end()) {
     // cache hit -- move entry to the front of the queue
-    ldout(cct, 20) << "cache hit" << dendl;
-    *policy_map_result = POLICY_MAP_RESULT_HIT;
-
     entry = entry_it->second;
     LRUList *lru;
-    if (entry->dirty) {
-      lru = &m_dirty_lru;
+    lru = &m_clean_lru;
+    
+    if (io_type == IO_TYPE_WRITE) {
+      *policy_map_result = POLICY_MAP_RESULT_MISS;
+      if( entry->in_base_cache ) {
+        entry->in_base_cache = false;
+      }
+      lru->remove(entry);
+      m_free_lru.insert_tail(entry);
+      m_block_to_entries.erase(entry_it);
+      return 0;
+    }
+    if( entry->in_base_cache ) {
+      ldout(cct, 1) << "cache hit in base snap, blocks: " << block << dendl;
+      *policy_map_result = POLICY_MAP_RESULT_HIT_IN_BASE;
     } else {
-      lru = &m_clean_lru;
+      ldout(cct, 1) << "cache hit, block: " << block << dendl;
+      *policy_map_result = POLICY_MAP_RESULT_HIT;
     }
 
     lru->remove(entry);
     lru->insert_head(entry);
-    return 0;
-  }
-  if (io_type == IO_TYPE_WRITE) {
-    *policy_map_result = POLICY_MAP_RESULT_MISS;
     return 0;
   }
 
@@ -168,14 +114,17 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
   entry = reinterpret_cast<Entry*>(m_free_lru.get_head());
   if (entry != nullptr) {
     // entries are available -- allocate a slot
-    ldout(cct, 20) << "cache miss -- new entry" << dendl;
+    ldout(cct, 1) << "cache miss -- new entry, block: " << block << dendl;
     *policy_map_result = POLICY_MAP_RESULT_NEW;
     m_free_lru.remove(entry);
 
     entry->block = block;
+    entry->in_base_cache = in_base_cache;
     m_block_to_entries[block] = entry;
     m_clean_lru.insert_head(entry);
     return 0;
+  } else {
+    ldout(cct, 1) << "cache miss: " << block << dendl;
   }
 
   // no clean entries to evict -- treat this as a miss
@@ -186,6 +135,15 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
 template <typename I>
 void StupidPolicy<I>::tick() {
   // stupid policy -- do nothing
+}
+
+template <typename I>
+void StupidPolicy<I>::set_to_base_cache(uint64_t block) {
+  Mutex::Locker locker(m_lock);
+  auto entry_it = m_block_to_entries.find(block);
+  assert(entry_it != m_block_to_entries.end());
+  Entry* entry = entry_it->second;
+  entry->in_base_cache = true;
 }
 
 } // namespace file

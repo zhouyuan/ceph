@@ -24,15 +24,14 @@ public:
 
   virtual int invalidate(uint64_t block) = 0;
 
-  virtual bool contains_dirty() const = 0;
-  virtual bool is_dirty(uint64_t block) const = 0;
-  virtual void set_dirty(uint64_t block) = 0;
-  virtual void clear_dirty(uint64_t block) = 0;
-
   virtual int map(IOType io_type, uint64_t block, bool partial_block,
                   PolicyMapResult *policy_map_result,
-                  uint64_t *replace_cache_block) = 0;
+                  bool in_base_cache = false) = 0;
   virtual void tick() = 0;
+  virtual uint64_t offset_to_block(uint64_t offset) = 0;
+  virtual uint64_t block_to_offset(uint64_t block) = 0;
+  virtual uint64_t get_block_count() = 0;
+  virtual void set_to_base_cache(uint64_t block) = 0;
 
 };
 
