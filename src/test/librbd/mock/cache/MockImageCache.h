@@ -5,6 +5,7 @@
 #define CEPH_TEST_LIBRBD_CACHE_MOCK_IMAGE_CACHE_H
 
 #include "gmock/gmock.h"
+#include "librbd/cache/ImageCache.h"
 #include <vector>
 
 namespace librbd {
@@ -36,6 +37,8 @@ struct MockImageCache {
                      int fadvise_flags, Context *on_finish) {
     aio_writesame_mock(off, len, bl, fadvise_flags, on_finish);
   }
+
+  MOCK_METHOD1(remove, void(Context *));
 };
 
 } // namespace cache

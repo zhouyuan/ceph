@@ -8,6 +8,7 @@
 #include "test/librbd/mock/MockContextWQ.h"
 #include "test/librbd/mock/MockExclusiveLock.h"
 #include "test/librbd/mock/MockImageState.h"
+#include "test/librbd/mock/cache/MockImageCache.h"
 #include "test/librbd/mock/MockImageWatcher.h"
 #include "test/librbd/mock/MockJournal.h"
 #include "test/librbd/mock/MockObjectMap.h"
@@ -22,7 +23,7 @@
 
 namespace librbd {
 
-namespace cache { class MockImageCache; }
+//namespace cache { class MockImageCache; }
 namespace operation {
 template <typename> class ResizeRequest;
 }
@@ -101,7 +102,8 @@ struct MockImageCtx {
           image_ctx.journal_max_concurrent_object_sets),
       mirroring_resync_after_disconnect(
           image_ctx.mirroring_resync_after_disconnect),
-      mirroring_replay_delay(image_ctx.mirroring_replay_delay)
+      mirroring_replay_delay(image_ctx.mirroring_replay_delay),
+      persistent_cache_enabled(false)
   {
     md_ctx.dup(image_ctx.md_ctx);
     data_ctx.dup(image_ctx.data_ctx);
@@ -286,6 +288,8 @@ struct MockImageCtx {
   int journal_max_concurrent_object_sets;
   bool mirroring_resync_after_disconnect;
   int mirroring_replay_delay;
+
+  bool persistent_cache_enabled;
 };
 
 } // namespace librbd
