@@ -7,7 +7,7 @@
 #include "include/buffer_fwd.h"
 #include "include/int_types.h"
 #include "os/CacheStore/SyncFile.h"
-#include "librbd/cache/file/MetaStore.cc"
+#include "librbd/cache/file/StupidPolicy.cc"
 #include <vector>
 
 struct Context;
@@ -26,7 +26,7 @@ class ImageStore {
 public:
   typedef std::vector<std::pair<uint32_t, uint32_t> > BlockExtents;
 
-  ImageStore(ImageCtxT &image_ctx, MetaStore<ImageCtxT> &metastore);
+  ImageStore(ImageCtxT &image_ctx, Policy &policy, uint64_t image_size, std::string volumd_name);
 
   void init(Context *on_finish);
   void shut_down(Context *on_finish);
@@ -37,10 +37,12 @@ public:
   void write_block(uint64_t cache_block, BlockExtents &&block_extents,
                    ceph::bufferlist &&bl, Context *on_finish);
   void discard_block(uint64_t cache_block, Context *on_finish);
+  bool check_exists();
 
 private:
   ImageCtxT &m_image_ctx;
-  MetaStore<ImageCtxT> &m_metastore;
+  Policy &m_policy;
+  uint64_t m_image_size;
   os::CacheStore::SyncFile m_cache_file;
 
 };

@@ -6,7 +6,7 @@
 
 #include "include/int_types.h"
 #include "os/CacheStore/SyncFile.h"
-#include "common/Mutex.h"
+#include <mutex>
 
 struct Context;
 
@@ -20,22 +20,21 @@ namespace file {
 template <typename ImageCtxT>
 class MetaStore {
 public:
-  MetaStore(ImageCtxT &image_ctx, uint32_t block_size);
+  MetaStore(ImageCtxT &image_ctx, uint64_t block_count);
 
   void init(Context *on_finish);
   void shut_down(Context *on_finish);
-
-  inline uint64_t offset_to_block(uint64_t offset) {
-    return offset / m_block_size;
-  }
-
-  inline uint64_t block_to_offset(uint64_t block) {
-    return block * m_block_size;
-  }
+  void update(uint64_t block_id, uint8_t loc);
+  void get_loc_map(uint8_t *dest);
+  void load(uint8_t loc);
 
 private:
   ImageCtxT &m_image_ctx;
-  uint32_t m_block_size;
+  uint64_t m_block_count;
+  uint8_t *m_loc_map;
+  //mutable Mutex m_lock;
+  std::mutex m_lock;
+  bool init_m_loc_map;
 
   os::CacheStore::SyncFile m_aio_file;
 
