@@ -52,21 +52,22 @@ public:
 
   void invalidate(Context *on_finish) override;
   void flush(Context *on_finish) override;
-  void load_snap_as_base(Context *on_finish, bool parent_cache_exists);
+  void load_snap_as_base(Context *on_finish);
+  void load_meta_to_policy();
+
+  ImageWriteback<ImageCtxT> m_image_writeback;
+  ImageWriteback<ImageCtxT> m_parent_snap_image_writeback;
+  file::Policy *m_policy = nullptr;
+  file::MetaStore<ImageCtx> *m_meta_store = nullptr;
+  file::ImageStore<ImageCtx> *m_image_store = nullptr;
+  file::ImageStore<ImageCtx> *m_parent_image_store = nullptr;
 
 private:
   typedef std::function<void(uint64_t)> ReleaseBlock;
   typedef std::list<Context *> Contexts;
 
   ImageCtxT &m_image_ctx;
-  ImageWriteback<ImageCtxT> m_image_writeback;
-  ImageWriteback<ImageCtxT> m_parent_snap_image_writeback;
   BlockGuard m_block_guard;
-
-  file::Policy *m_policy = nullptr;
-  file::MetaStore<ImageCtx> *m_meta_store = nullptr;
-  file::ImageStore<ImageCtx> *m_image_store = nullptr;
-  file::ImageStore<ImageCtx> *m_parent_image_store = nullptr;
 
   util::AsyncOpTracker m_async_op_tracker;
 
@@ -79,6 +80,7 @@ private:
                   BlockGuard::C_BlockRequest *block_request);
   void map_block(BlockGuard::BlockIO &&block_io);
   void invalidate(Extents&& image_extents, Context *on_finish);
+  bool if_cloned_volume;
 
 };
 

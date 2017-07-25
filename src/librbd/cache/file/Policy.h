@@ -32,6 +32,8 @@ public:
   virtual uint64_t block_to_offset(uint64_t block) = 0;
   virtual uint64_t get_block_count() = 0;
   virtual void set_to_base_cache(uint64_t block) = 0;
+  virtual uint8_t get_loc(uint64_t block) = 0;
+  virtual void set_loc(uint8_t *src) = 0;
 
 };
 

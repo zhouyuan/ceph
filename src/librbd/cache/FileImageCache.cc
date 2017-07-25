@@ -68,7 +68,7 @@ struct C_LoadBaseCompleteCheck : public BlockGuard::C_BlockIORequest {
 
   C_LoadBaseCompleteCheck(CephContext *cct, Context* on_finish, uint64_t blocks)
     : C_BlockIORequest(cct, nullptr), on_finish(on_finish), inflight_promote_blocks(blocks){
-    }
+  }
 
   virtual void send() override {
     //ldout(cct, 1) << "(" << get_name() << ")" << "inflight_promote_blocks: " << inflight_promote_blocks << dendl;
@@ -188,18 +188,23 @@ struct C_PromoteToCache : public BlockGuard::C_BlockIORequest {
 template <typename I>
 struct C_DemoteFromCache : public BlockGuard::C_BlockIORequest {
   ImageStore<I> &image_store;
+  MetaStore<I> *meta_store;
+  Policy* policy;
   uint64_t block;
 
   C_DemoteFromCache(CephContext *cct, ImageStore<I> &image_store,
-                    uint64_t block,
+                    MetaStore<I> *meta_store,
+                    Policy* policy, uint64_t block,
                     C_BlockIORequest *next_block_request)
     : C_BlockIORequest(cct, next_block_request),
-      image_store(image_store), block(block) {
+      image_store(image_store), meta_store(meta_store), 
+      policy(policy), block(block) {
   }
 
   virtual void send() override {
     ldout(cct, 20) << "(" << get_name() << "): "
                    << "block=" << block << dendl;
+    meta_store->update(block, policy->get_loc(block));
     image_store.discard_block(block, this);
   }
   virtual const char *get_name() const override {
@@ -277,14 +282,15 @@ struct C_ReadFromImageRequest : public BlockGuard::C_BlockIORequest {
 
 template <typename I>
 struct C_WriteToMetaRequest : public BlockGuard::C_BlockIORequest {
-  MetaStore<I> &meta_store;
+  MetaStore<I> *meta_store;
   uint64_t cache_block_id;
   Policy *policy;
 
-  C_WriteToMetaRequest(CephContext *cct, MetaStore<I> &meta_store,
-		                uint64_t cache_block_id, Policy *policy,
-                        C_BlockIORequest *next_block_request)
-    : C_BlockIORequest(cct, next_block_request), meta_store(meta_store),
+  C_WriteToMetaRequest(CephContext *cct, MetaStore<I> *meta_store,
+		                   uint64_t cache_block_id, Policy *policy,
+                       C_BlockIORequest *next_block_request)
+    : C_BlockIORequest(cct, next_block_request),
+    meta_store(meta_store),
     cache_block_id(cache_block_id), policy(policy) {
   }
 
@@ -292,11 +298,10 @@ struct C_WriteToMetaRequest : public BlockGuard::C_BlockIORequest {
     ldout(cct, 20) << "(" << get_name() << "): "
                    << "cache_block_id=" << cache_block_id << dendl;
 
-    bufferlist meta_bl;
-    //policy->entry_to_bufferlist(cache_block_id, &meta_bl);
-    ldout(cct, 20) << "entry_to_bufferlist bl:" << meta_bl << dendl;
-    meta_store.write_block(cache_block_id, std::move(meta_bl), this);
+    meta_store->update(cache_block_id, policy->get_loc(cache_block_id));
+    complete(0);
   }
+
   virtual const char *get_name() const override {
     return "C_WriteToMetaRequest";
   }
@@ -467,25 +472,18 @@ struct C_ModifyBlockBuffer : public BlockGuard::C_BlockIORequest {
 template <typename I>
 struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
   I &image_ctx;
-  ImageWriteback<I> &image_writeback;
-  ImageStore<I> &image_store;
-  ImageStore<I> &parent_image_store;
+  FileImageCache<I> *cache_ctx;
   bufferlist *bl;
 
   ExtentBuffers extent_buffers;
   Buffers promote_buffers;
 
   C_ReadBlockRequest(I &image_ctx,
-                     ImageWriteback<I> &image_writeback,
-                     ImageStore<I> &image_store,
-                     ImageStore<I> &parent_image_store,
+                     FileImageCache<I> *cache_ctx,
                      bufferlist *bl,
                      Context *on_finish)
     : C_BlockRequest(on_finish), image_ctx(image_ctx),
-      image_writeback(image_writeback),
-      image_store(image_store),
-      parent_image_store(parent_image_store),
-      bl(bl) {
+      cache_ctx(cache_ctx), bl(bl) {
   }
 
   virtual void remap(PolicyMapResult policy_map_result,
@@ -509,26 +507,27 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
 
     switch (policy_map_result) {
     case POLICY_MAP_RESULT_HIT:
-      req = new C_ReadFromCacheRequest<I>(cct, image_store, std::move(block_io),
+      req = new C_ReadFromCacheRequest<I>(cct, *cache_ctx->m_image_store, std::move(block_io),
                                           &extent_buffers, req);
       break;
     case POLICY_MAP_RESULT_HIT_IN_BASE:
-      req = new C_ReadFromCacheRequest<I>(cct, parent_image_store, std::move(block_io),
+      req = new C_ReadFromCacheRequest<I>(cct, *cache_ctx->m_parent_image_store, std::move(block_io),
                                           &extent_buffers, req);
       break;
     case POLICY_MAP_RESULT_MISS:
-      req = new C_ReadFromImageRequest<I>(cct, image_writeback,
+      req = new C_ReadFromImageRequest<I>(cct, cache_ctx->m_image_writeback,
                                           std::move(block_io), &extent_buffers,
                                           req);
       break;
     case POLICY_MAP_RESULT_NEW:
-    case POLICY_MAP_RESULT_REPLACE:
       promote_buffers.emplace_back();
+      req = new C_WriteToMetaRequest<I>(cct, cache_ctx->m_meta_store, block_io.block,
+                                        cache_ctx->m_policy, req);
       req = new C_CopyFromBlockBuffer(cct, block_io, promote_buffers.back(),
                                       &extent_buffers, req);
-      req = new C_PromoteToCache<I>(cct, image_store, block_io.block,
+      req = new C_PromoteToCache<I>(cct, *cache_ctx->m_image_store, block_io.block,
                                     promote_buffers.back(), req);
-      req = new C_ReadBlockFromImageRequest<I>(cct, image_writeback,
+      req = new C_ReadBlockFromImageRequest<I>(cct, cache_ctx->m_image_writeback,
                                                block_io.block,
                                                &promote_buffers.back(), req);
       break;
@@ -549,7 +548,6 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
     }else{
       ldout(cct, 10) << "block_io: "<< block_io << " is in process, skip schedule" << dendl;
     }
-    //req->send();
   }
 
   virtual void finish(int r) override {
@@ -574,20 +572,17 @@ struct C_ReadBlockRequest : public BlockGuard::C_BlockRequest {
 template <typename I>
 struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
   I &image_ctx;
-  ImageWriteback<I> &image_writeback;
-  Policy &policy;
-  ImageStore<I> &image_store;
+  FileImageCache<I> *cache_ctx;
   bufferlist bl;
   uint32_t block_size;
 
   Buffers promote_buffers;
 
-  C_WriteBlockRequest(I &image_ctx, ImageWriteback<I> &image_writeback,
-                      Policy &policy, ImageStore<I> &image_store,
+  C_WriteBlockRequest(I &image_ctx, FileImageCache<I> *cache_ctx,
                       bufferlist &&bl, uint32_t block_size, Context *on_finish)
     : C_BlockRequest(on_finish),
-      image_ctx(image_ctx), image_writeback(image_writeback), policy(policy),
-      image_store(image_store),
+      image_ctx(image_ctx),
+      cache_ctx(cache_ctx),
       bl(std::move(bl)), block_size(block_size) {
   }
 
@@ -609,10 +604,12 @@ struct C_WriteBlockRequest : BlockGuard::C_BlockRequest {
     block_info->tail_block_io_request = req;
 
     if (policy_map_result == POLICY_MAP_RESULT_HIT) {
-      req = new C_DemoteFromCache<I>(cct, image_store,
+      req = new C_DemoteFromCache<I>(cct, *cache_ctx->m_image_store,
+                                     cache_ctx->m_meta_store,
+                                     cache_ctx->m_policy,
                                      block_io.block, req);
     }
-    req = new C_WriteToImageRequest<I>(cct, image_writeback,
+    req = new C_WriteToImageRequest<I>(cct, cache_ctx->m_image_writeback,
                                      std::move(block_io), bl, req);
     //chendi: schedule send on another tread, and check if we can continue
     if (orig_tail_block_io_req != nullptr)
@@ -637,7 +634,7 @@ template <typename I>
 FileImageCache<I>::FileImageCache(ImageCtx &image_ctx)
   : m_image_ctx(image_ctx), m_image_writeback(image_ctx),
     m_block_guard(image_ctx.cct, image_ctx.cct->_conf->rbd_persistent_cache_size, BLOCK_SIZE),
-    m_policy(new StupidPolicy<I>(m_image_ctx, m_block_guard)),
+    m_policy(new StupidPolicy<I>(image_ctx, m_block_guard)),
     m_lock("librbd::cache::FileImageCache::m_lock"),
     m_parent_snap_image_writeback(*image_ctx.parent) {
   CephContext *cct = m_image_ctx.cct;
@@ -646,6 +643,7 @@ FileImageCache<I>::FileImageCache(ImageCtx &image_ctx)
   cct->lookup_or_create_singleton_object<ThreadPoolSingleton>(
     thread_pool_singleton, "librbd::cache::thread_pool");
   m_image_ctx.pcache_op_work_queue = thread_pool_singleton->pcache_op_work_queue; 
+  if_cloned_volume = false;
 }
 
 template <typename I>
@@ -657,9 +655,11 @@ template <typename I>
 void FileImageCache<I>::aio_read(Extents &&image_extents, bufferlist *bl,
                                  int fadvise_flags, Context *on_finish) {
   // TODO handle fadvise flags
-  BlockGuard::C_BlockRequest *req = new C_ReadBlockRequest<I>(
+  /*BlockGuard::C_BlockRequest *req = new C_ReadBlockRequest<I>(
     m_image_ctx, m_image_writeback, *m_image_store, *m_parent_image_store, bl,
-    on_finish);
+    on_finish);*/
+  BlockGuard::C_BlockRequest *req = new C_ReadBlockRequest<I>(
+    m_image_ctx, this, bl, on_finish);
   map_blocks(IO_TYPE_READ, std::move(image_extents), req);
 }
 
@@ -678,8 +678,7 @@ void FileImageCache<I>::aio_write(Extents &&image_extents,
 
   // TODO handle fadvise flags
   BlockGuard::C_BlockRequest *req = new C_WriteBlockRequest<I>(
-    m_image_ctx, m_image_writeback, *m_policy, *m_image_store,
-    std::move(bl), BLOCK_SIZE, on_finish);
+    m_image_ctx, this, std::move(bl), BLOCK_SIZE, on_finish);
   map_blocks(IO_TYPE_WRITE, std::move(image_extents), req);
 }
 
@@ -765,10 +764,15 @@ void FileImageCache<I>::init(Context *on_finish) {
         on_finish->complete(r);
         return;
       }
+      if (!m_image_ctx.parent) {
+          m_meta_store->load(0XF2);
+      }
+      load_meta_to_policy();
       m_image_store = new ImageStore<I>(m_image_ctx, *m_policy, m_image_ctx.size, m_image_ctx.id);
       m_image_store->init(ctx);
   });
   if (m_image_ctx.parent) {
+    if_cloned_volume = true;
     ldout(cct, 20) << "parent_snap_id: "
       << m_image_ctx.parent->snap_id << ", parent_id: "
       << m_image_ctx.parent->id << dendl;
@@ -780,7 +784,12 @@ void FileImageCache<I>::init(Context *on_finish) {
           on_finish->complete(r);
           return;
         } else {
-          load_snap_as_base(ctx, parent_cache_exists);
+          if (parent_cache_exists) {
+            m_meta_store->load(0xF0);
+            ctx->complete(0);
+          } else {
+            load_snap_as_base(ctx);
+          }
         }
     });
     ctx = new FunctionContext(
@@ -793,7 +802,7 @@ void FileImageCache<I>::init(Context *on_finish) {
         }
     });
   }
-  m_meta_store = new MetaStore<I>(m_image_ctx, BLOCK_SIZE);
+  m_meta_store = new MetaStore<I>(m_image_ctx, m_policy->get_block_count());
   m_meta_store->init(ctx);
 }
 
@@ -822,7 +831,7 @@ void FileImageCache<I>::shut_down(Context *on_finish) {
       }
       m_meta_store->shut_down(next_ctx);
     });
-  if (m_image_ctx.parent) {
+  if (if_cloned_volume) {
     ctx = new FunctionContext(
       [this, ctx](int r) {
         Context *next_ctx = ctx;
@@ -904,7 +913,14 @@ void FileImageCache<I>::map_block(BlockGuard::BlockIO &&block_io) {
 }
 
 template <typename I>
-void FileImageCache<I>::load_snap_as_base(Context* on_finish, bool parent_cache_exists) {
+void FileImageCache<I>::load_meta_to_policy() {
+  uint8_t* dest_map = new uint8_t[m_policy->get_block_count()]();
+  m_meta_store->get_loc_map(dest_map);
+  m_policy->set_loc(dest_map);
+}
+
+template <typename I>
+void FileImageCache<I>::load_snap_as_base(Context* on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
   int r;
@@ -925,14 +941,14 @@ void FileImageCache<I>::load_snap_as_base(Context* on_finish, bool parent_cache_
                << dendl;
       return;
     }
-    if (parent_cache_exists) {
-      complete_check->send();
-    } else {
+    {
       if (policy_map_result == POLICY_MAP_RESULT_NEW) {
         m_policy->set_to_base_cache(block_id);
         BlockGuard::C_BlockIORequest *req = new C_PromoteBaseToCacheComplete(cct, complete_check);
         Buffers *buffer_ptr = (Buffers*) req->get_buffer_ptr();
         buffer_ptr->emplace_back();
+        req = new C_WriteToMetaRequest<I>(cct, m_meta_store, block_id,
+                                          m_policy, req);
         req = new C_PromoteToCache<I>(cct, *m_parent_image_store, block_id,
                                       buffer_ptr->back(), req);
         req = new C_ReadBlockFromImageRequest<I>(cct, m_parent_snap_image_writeback,

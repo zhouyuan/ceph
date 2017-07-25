@@ -60,6 +60,7 @@ bool SyncFile::try_open() {
     ::close(m_fd);
     return false;
   }
+  ::close(m_fd);
   return true;
 }
 
@@ -246,6 +247,20 @@ uint64_t SyncFile::filesize() {
   memset(&file_st, 0, sizeof(file_st));
   fstat(m_fd, &file_st);
   return file_st.st_size;
+}
+
+int SyncFile::load(void** dest, uint64_t size) {
+  ldout(cct, 20) << dendl;
+  if (size > filesize()) {
+    truncate(size, true);
+  }
+  void* mmappedData = ::mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, m_fd, 0);
+  if (mmappedData != MAP_FAILED) {
+    *dest = mmappedData;
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
 } // namespace CacheStore
