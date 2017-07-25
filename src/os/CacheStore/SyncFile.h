@@ -5,6 +5,7 @@
 #define CEPH_LIBOS_CACHE_STORE_SYNC_FILE
 
 #include "include/buffer_fwd.h"
+#include <sys/mman.h>
 #include <string>
 
 struct Context;
@@ -42,6 +43,7 @@ public:
   void fsync(Context *on_finish);
   void fdatasync(Context *on_finish);
   uint64_t filesize();
+  int load(void** dest, uint64_t filesize);
 
 private:
   CephContext *cct;
