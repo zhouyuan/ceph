@@ -87,8 +87,8 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
     LRUList *lru;
     lru = &m_clean_lru;
     
-    if (io_type == IO_TYPE_WRITE) {
-      *policy_map_result = POLICY_MAP_RESULT_MISS;
+    if (io_type != IO_TYPE_READ) {
+      *policy_map_result = POLICY_MAP_RESULT_HIT;
       if( entry->in_base_cache ) {
         entry->in_base_cache = false;
       }
@@ -110,6 +110,10 @@ int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,
     return 0;
   }
 
+  if (io_type != IO_TYPE_READ) {
+    *policy_map_result = POLICY_MAP_RESULT_MISS;
+    return 0;
+  }
   // cache miss
   entry = reinterpret_cast<Entry*>(m_free_lru.get_head());
   if (entry != nullptr) {
@@ -144,6 +148,49 @@ void StupidPolicy<I>::set_to_base_cache(uint64_t block) {
   assert(entry_it != m_block_to_entries.end());
   Entry* entry = entry_it->second;
   entry->in_base_cache = true;
+}
+
+template <typename I>
+uint8_t StupidPolicy<I>::get_loc(uint64_t block) {
+  Mutex::Locker locker(m_lock);
+  Entry *entry;
+  auto entry_it = m_block_to_entries.find(block);
+  if (entry_it != m_block_to_entries.end()) {
+    entry = entry_it->second;
+    if (entry->in_base_cache)
+      return LOCATE_IN_BASE_CACHE;
+    else
+      return LOCATE_IN_CACHE;
+  }
+  return NOT_IN_CACHE;
+}
+
+template <typename I>
+void StupidPolicy<I>::set_loc(uint8_t *src) {
+  Entry* entry;
+  for(uint64_t block_id = 0; block_id < m_block_count; block_id++) {
+    switch(src[block_id]) {
+      case NOT_IN_CACHE:
+        break;
+      case LOCATE_IN_CACHE:
+        entry = reinterpret_cast<Entry*>(m_free_lru.get_head());
+        entry->in_base_cache = false;
+        entry->block = block_id;
+        m_free_lru.remove(entry);
+        m_block_to_entries[block_id] = entry;
+        m_clean_lru.insert_head(entry);
+        break;
+      case LOCATE_IN_BASE_CACHE:
+      default:
+        entry = reinterpret_cast<Entry*>(m_free_lru.get_head());
+        entry->in_base_cache = true;
+        entry->block = block_id;
+        m_free_lru.remove(entry);
+        m_block_to_entries[block_id] = entry;
+        m_clean_lru.insert_head(entry);
+        break;
+    }
+  }
 }
 
 } // namespace file

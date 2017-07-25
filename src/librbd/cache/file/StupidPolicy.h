@@ -75,6 +75,9 @@ public:
     return m_block_count;
   }
 
+  virtual uint8_t get_loc(uint64_t block);
+  virtual void set_loc(uint8_t *src);
+
 };
 
 } // namespace file
