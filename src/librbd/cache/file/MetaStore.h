@@ -37,7 +37,7 @@ private:
   std::mutex m_lock;
   bool init_m_loc_map;
 
-  os::CacheStore::SyncFile m_aio_file;
+  os::CacheStore::SyncFile m_meta_file;
 
 };
 
