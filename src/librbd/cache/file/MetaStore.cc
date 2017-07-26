@@ -37,6 +37,14 @@ void MetaStore<I>::init(Context *on_finish) {
 }
 
 template <typename I>
+void MetaStore<I>::remove(Context *on_finish) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << dendl;
+
+  m_aio_file.remove(on_finish);
+}
+
+template <typename I>
 void MetaStore<I>::shut_down(Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;

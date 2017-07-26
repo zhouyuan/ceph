@@ -807,6 +807,26 @@ void FileImageCache<I>::init(Context *on_finish) {
 }
 
 template <typename I>
+void FileImageCache<I>::remove(Context *on_finish) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << dendl;
+
+  Context *ctx = new FunctionContext(
+    [this, on_finish](int r) {
+      on_finish->complete(r);
+  });
+  ctx = new FunctionContext(
+    [this, on_finish, ctx](int r) {
+      if (r < 0) {
+        on_finish->complete(r);
+      } else {
+        m_meta_store->remove(ctx);
+      }
+    });
+  m_image_store->remove(ctx);
+}
+
+template <typename I>
 void FileImageCache<I>::shut_down(Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
