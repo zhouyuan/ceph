@@ -169,6 +169,8 @@ private:
   Context *handle_remove_header_v2(int *result);
 
   void remove_image();
+  void remove_image_cache();
+  void handle_remove_image_cache(int r);
 
   void remove_v1_image();
   void handle_remove_v1_image(int r);

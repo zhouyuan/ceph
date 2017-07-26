@@ -44,6 +44,14 @@ void ImageStore<I>::init(Context *on_finish) {
 }
 
 template <typename I>
+void ImageStore<I>::remove(Context *on_finish) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << dendl;
+
+  m_cache_file.remove(on_finish);
+}
+
+template <typename I>
 void ImageStore<I>::shut_down(Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;

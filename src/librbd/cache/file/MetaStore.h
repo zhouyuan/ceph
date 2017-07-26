@@ -23,6 +23,7 @@ public:
   MetaStore(ImageCtxT &image_ctx, uint64_t block_count);
 
   void init(Context *on_finish);
+  void remove(Context *on_finish);
   void shut_down(Context *on_finish);
   void update(uint64_t block_id, uint8_t loc);
   void get_loc_map(uint8_t *dest);

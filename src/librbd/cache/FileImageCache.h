@@ -48,6 +48,7 @@ public:
 
   /// internal state methods
   void init(Context *on_finish) override;
+  void remove(Context *on_finish) override;
   void shut_down(Context *on_finish) override;
 
   void invalidate(Context *on_finish) override;

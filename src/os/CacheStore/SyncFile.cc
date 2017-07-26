@@ -83,6 +83,10 @@ void SyncFile::close(Context *on_finish) {
   on_finish->complete(0);
 }
 
+void SyncFile::remove(Context *on_finish) {
+  on_finish->complete(remove());
+}
+
 void SyncFile::read(uint64_t offset, uint64_t length, ceph::bufferlist *bl,
                       Context *on_finish) {
   on_finish->complete(read(offset, length, bl));
@@ -261,6 +265,11 @@ int SyncFile::load(void** dest, uint64_t size) {
   } else {
     return -1;
   }
+}
+
+int SyncFile::remove() {
+  ldout(cct, 20) << m_name << dendl;
+  return ::remove(m_name.c_str());
 }
 
 } // namespace CacheStore
