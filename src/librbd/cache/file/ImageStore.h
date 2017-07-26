@@ -29,6 +29,7 @@ public:
   ImageStore(ImageCtxT &image_ctx, Policy &policy, uint64_t image_size, std::string volumd_name);
 
   void init(Context *on_finish);
+  void remove(Context *on_finish);
   void shut_down(Context *on_finish);
   void reset(Context *on_finish);
 
