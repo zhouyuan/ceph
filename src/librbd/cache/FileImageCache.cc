@@ -863,6 +863,13 @@ void FileImageCache<I>::shut_down(Context *on_finish) {
         }
         m_parent_image_store->shut_down(next_ctx);
       });
+  } else {
+  // stupid fix by chendi:
+  // when doing rbd creation, cloned rbd will be opened without parent
+  // but close with parent. So meta should be fixed
+    if (m_image_ctx.parent) {
+      m_meta_store->load(0xF0);
+    }
   }
   ctx = new FunctionContext(
     [this, ctx](int r) {
