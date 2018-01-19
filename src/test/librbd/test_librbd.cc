@@ -3004,6 +3004,7 @@ TEST_F(TestLibRBD, TestClone)
 TEST_F(TestLibRBD, TestClone2)
 {
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
+  REQUIRE(!this->is_rbd_persistent_cache_enabled());
   ASSERT_EQ(0, rados_conf_set(_cluster, "rbd_default_clone_format", "2"));
   BOOST_SCOPE_EXIT_ALL(&) {
     ASSERT_EQ(0, rados_conf_set(_cluster, "rbd_default_clone_format", "auto"));
