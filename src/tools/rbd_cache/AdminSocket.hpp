@@ -1,3 +1,6 @@
+#ifndef ADMIN_SOCKET_H
+#define ADMIN_SOCKET_H
+
 #include <cstdio>
 #include <iostream>
 #include <array>
@@ -27,10 +30,11 @@ public:
   }
 
   void handle_read(const boost::system::error_code& error, size_t bytes_transferred) {
-    //TODO(): parse message, format=iotype rbdname offset length
+    //TODO(yuan): parse message, format=iotype rbdname offset length
 
-    //TODO(): return content, do promotion if needed
     if (!error) {
+      //TODO(yuan): check metastore results, return result to client
+      /*
       std::string raw_cmd_str(data_.data());
       std::vector<std::string> cmd_str_vector;
       boost::split(cmd_str_vector, raw_cmd_str, boost::is_any_of(" "));
@@ -41,6 +45,7 @@ public:
       std::string rbd_offset = cmd_str_vector[2];
       std::string rbd_length = cmd_str_vector[3];
       std::cout << "AAAA " << io_type << std::endl;
+      */
       
       boost::asio::async_write(socket_,
           boost::asio::buffer(data_, bytes_transferred),
@@ -100,19 +105,4 @@ private:
   stream_protocol::acceptor acceptor_;
 };
 
-/*
-int main(int argc, char* argv[]) {
-  try {
-    boost::asio::io_service io_service;
-
-    std::remove("/tmp/rbd_shared_readonly_cache_demo"); 
-    server s(io_service, "/tmp/rbd_shared_readonly_cache_demo");
-
-    io_service.run();
-  } catch (std::exception& e) {
-    std::cerr << "Exception: " << e.what() << "\n";
-  }
-
-  return 0;
-}
-*/
+#endif

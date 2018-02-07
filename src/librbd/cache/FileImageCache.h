@@ -10,6 +10,7 @@
 #include "librbd/cache/ImageWriteback.h"
 #include "librbd/cache/file/Policy.h"
 #include "common/WorkQueue.h"
+#include "tools/rbd_cache/AdminSocketClient.hpp"
 #include <functional>
 #include <list>
 
@@ -95,8 +96,8 @@ private:
                   BlockGuard::C_BlockRequest *block_request);
   void map_block(BlockGuard::BlockIO &&block_io);
   void invalidate(Extents&& image_extents, Context *on_finish);
-  bool if_cloned_volume;
   uint64_t p_cache_size;
+  CacheClient *m_cache_client = nullptr;
 
 };
 

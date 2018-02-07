@@ -1,3 +1,6 @@
+#ifndef CACHE_CONTROLLER_H
+#define CACHE_CONTROLLER_H
+
 #include <thread>
 #include "common/Formatter.h"
 #include "common/admin_socket.h"
@@ -67,3 +70,5 @@ class CacheController {
   RBDImageStore *m_imgstore;
   //Mutex &m_lock;
 };
+
+#endif

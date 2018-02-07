@@ -1,3 +1,6 @@
+#ifndef RBD_IMAGE_STORE_H
+#define RBD_IMAGE_STORE_H
+
 #include "common/debug.h"
 #include "common/errno.h"
 #include "common/ceph_context.h"
@@ -107,3 +110,5 @@ int RBDImageStore::promote_block(std::string pool_name, std::string volume_name,
 
   return 0;
 }
+
+#endif
