@@ -5,7 +5,10 @@
 #define CEPH_LIBRBD_CACHE_PASSTHROUGH_IMAGE_CACHE
 
 #include "ImageCache.h"
+#include "ImageStore.h"
 #include "ImageWriteback.h"
+#include "librbd/cache/BlockGuard.h"
+#include "tools/rbd_cache/AdminSocketClient.hpp"
 
 namespace librbd {
 
@@ -17,9 +20,10 @@ namespace cache {
  * Example passthrough client-side, image extent cache
  */
 template <typename ImageCtxT = librbd::ImageCtx>
-class PassthroughImageCache : public ImageCache {
+class SharedImageCache : public ImageCache {
 public:
-  PassthroughImageCache(ImageCtx &image_ctx);
+  SharedImageCache(ImageCtx &image_ctx);
+  ~SharedImageCache();
 
   /// client AIO methods
   void aio_read(Extents&& image_extents, ceph::bufferlist *bl,
@@ -44,15 +48,25 @@ public:
   void invalidate(Context *on_finish) override;
   void flush(Context *on_finish) override;
 
+  ImageStore<ImageCtxT> *m_image_store = nullptr;
+
 private:
+  void map_blocks(IOType io_type, Extents &&image_extents,
+                  BlockGuard::C_BlockRequest *block_request);
+  void map_block(BlockGuard::BlockIO &&block_io);
+  void client_handle_request(std::string msg);
+
   ImageCtxT &m_image_ctx;
+  BlockGuard m_block_guard;
   ImageWriteback<ImageCtxT> m_image_writeback;
+  CacheClient *m_cache_client = nullptr;
+  boost::asio::io_service io_service;
 
 };
 
 } // namespace cache
 } // namespace librbd
 
-extern template class librbd::cache::PassthroughImageCache<librbd::ImageCtx>;
+extern template class librbd::cache::SharedImageCache<librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_CACHE_PASSTHROUGH_IMAGE_CACHE

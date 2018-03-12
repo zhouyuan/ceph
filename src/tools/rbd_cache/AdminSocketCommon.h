@@ -1,0 +1,40 @@
+#ifndef ADMIN_SOCKET_COMMON_H
+#define ADMIN_SOCKET_COMMON_H
+
+
+#define RBDSC_REGISTER         0X11
+#define RBDSC_READ             0X12
+#define RBDSC_LOOKUP           0X13
+#define RBDSC_REGISTER_REPLY   0X14
+#define RBDSC_READ_REPLY       0X15
+#define RBDSC_LOOKUP_REPLY     0X16
+
+typedef std::function<void(uint64_t, std::string)> ProcessMsg;
+typedef std::function<void(std::string)> ClientProcessMsg;
+typedef uint8_t rbdsc_req_type;
+struct rbdsc_req_type_t {
+  rbdsc_req_type type;
+  char pool_name[256];
+  char vol_name[256];
+  uint64_t vol_size;
+  uint64_t offset;
+  uint64_t length;
+
+  uint64_t size() {
+    return sizeof(rbdsc_req_type_t);
+  }
+
+  std::string to_buffer() {
+    std::stringstream ss;
+    ss << type;
+    ss << pool_name;
+    ss << vol_name;
+    ss << vol_size;
+    ss << offset;
+    ss << length;
+
+    return ss.str();
+  }
+};
+
+#endif
