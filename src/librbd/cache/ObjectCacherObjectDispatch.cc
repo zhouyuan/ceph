@@ -198,8 +198,10 @@ bool ObjectCacherObjectDispatch<I>::read(
   int r = m_object_cacher->readx(rd, m_object_set, on_dispatched, &trace);
   m_cache_lock.Unlock();
   if (r != 0) {
+    ldout(cct, 20) << "AAAAA complte" << r << " length=" << read_data->length() << dendl;
     on_dispatched->complete(r);
   }
+  ldout(cct, 20) << "BBBB no complte" << r << dendl;
   return true;
 }
 
