@@ -204,6 +204,9 @@ namespace librbd {
     uint64_t qos_read_bps_limit;
     uint64_t qos_write_bps_limit;
 
+    bool shared_cache_enabled;
+    std::string shared_cache_path;
+
     LibrbdAdminSocketHook *asok_hook;
 
     exclusive_lock::Policy *exclusive_lock_policy = nullptr;
