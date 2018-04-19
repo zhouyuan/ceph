@@ -199,6 +199,9 @@ namespace librbd {
     bool blkin_trace_all;
     uint64_t qos_iops_limit;
 
+    bool shared_cache_enabled;
+    std::string shared_cache_path;
+
     LibrbdAdminSocketHook *asok_hook;
 
     exclusive_lock::Policy *exclusive_lock_policy = nullptr;

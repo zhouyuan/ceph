@@ -771,7 +771,8 @@ public:
         "rbd_mirroring_delete_delay", false)(
         "rbd_mirroring_replay_delay", false)(
         "rbd_skip_partial_discard", false)(
-	"rbd_qos_iops_limit", false);
+	"rbd_qos_iops_limit", false)(
+        "rbd_shared_cache_enabled", false);
 
     md_config_t local_config_t;
     std::map<std::string, bufferlist> res;
@@ -834,7 +835,8 @@ public:
     ASSIGN_OPTION(skip_partial_discard, bool);
     ASSIGN_OPTION(blkin_trace_all, bool);
     ASSIGN_OPTION(qos_iops_limit, uint64_t);
-
+    ASSIGN_OPTION(shared_cache_enabled, bool);
+    ASSIGN_OPTION(shared_cache_path, std::string);
     if (thread_safe) {
       ASSIGN_OPTION(journal_pool, std::string);
     }
