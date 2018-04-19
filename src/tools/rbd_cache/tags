@@ -1,0 +1,182 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ADMIN_SOCKET_CLIENT_H	AdminSocketClient.hpp	2;"	d
+ADMIN_SOCKET_COMMON_H	AdminSocketCommon.h	2;"	d
+ADMIN_SOCKET_H	AdminSocket.hpp	2;"	d
+CACHE_CONTROLLER_H	CacheController.hpp	2;"	d
+CEPH_LIBRBD_CACHE_FILE_POLICY	Policy.h	5;"	d
+CEPH_LIBRBD_CACHE_FILE_STUPID_POLICY	StupidPolicy.h	5;"	d
+CRC_BYTE_NUM	RPCMessage.h	8;"	d
+CacheClient	AdminSocketClient.hpp	/^  CacheClient(boost::asio::io_service& io_service,$/;"	f	class:CacheClient
+CacheClient	AdminSocketClient.hpp	/^class CacheClient {$/;"	c
+CacheController	CacheController.hpp	/^  CacheController(CephContext *cct, const std::vector<const char*> &args):$/;"	f	class:CacheController
+CacheController	CacheController.hpp	/^class CacheController {$/;"	c
+CacheServer	AdminSocket.hpp	/^  CacheServer(boost::asio::io_service& io_service,$/;"	f	class:CacheServer
+CacheServer	AdminSocket.hpp	/^class CacheServer {$/;"	c
+ClientProcessMsg	AdminSocketCommon.h	/^typedef std::function<void(std::string)> ClientProcessMsg;$/;"	t
+Entries	StupidPolicy.h	/^  typedef std::vector<Entry> Entries;$/;"	t	class:rbd::cache::file::StupidPolicy
+IoCtxRef	CacheController.hpp	/^typedef shared_ptr<librados::IoCtx> IoCtxRef;$/;"	t
+IoCtxRef	ObjectCacheStore.hpp	/^typedef shared_ptr<librados::IoCtx> IoCtxRef;$/;"	t
+Message	RPCMessage.h	/^  Message(char* data, uint64_t size, uint64_t _seq_id) $/;"	f	struct:Message
+Message	RPCMessage.h	/^  Message(std::string data, uint64_t _seq_id) $/;"	f	struct:Message
+Message	RPCMessage.h	/^struct Message {$/;"	s
+MsgHeader	RPCMessage.h	/^  MsgHeader(uint64_t size, const char* _crc, uint64_t _seq_id):seq_id(_seq_id),size(size){$/;"	f	struct:MsgHeader
+MsgHeader	RPCMessage.h	/^struct MsgHeader {$/;"	s
+OBJECT_CACHE_STORE_H	ObjectCacheStore.hpp	2;"	d
+ObjectCacheStore	ObjectCacheStore.hpp	/^    ObjectCacheStore(CephContext *cct, ContextWQ* work_queue)$/;"	f	class:ObjectCacheStore
+ObjectCacheStore	ObjectCacheStore.hpp	/^class ObjectCacheStore $/;"	c
+PROMOTED	ObjectCacheStore.hpp	/^      PROMOTED, $/;"	e	enum:ObjectCacheStore::__anon1
+PROMOTING	ObjectCacheStore.hpp	/^      PROMOTING, $/;"	e	enum:ObjectCacheStore::__anon1
+Policy	Policy.h	/^class Policy {$/;"	c	namespace:rbd::cache::file
+ProcessMsg	AdminSocketCommon.h	/^typedef std::function<void(uint64_t, std::string)> ProcessMsg;$/;"	t
+RBDSC_LOOKUP	AdminSocketCommon.h	7;"	d
+RBDSC_LOOKUP_REPLY	AdminSocketCommon.h	10;"	d
+RBDSC_READ	AdminSocketCommon.h	6;"	d
+RBDSC_READ_REPLY	AdminSocketCommon.h	9;"	d
+RBDSC_REGISTER	AdminSocketCommon.h	5;"	d
+RBDSC_REGISTER_REPLY	AdminSocketCommon.h	8;"	d
+RPC_MESSAGE_h	RPCMessage.h	2;"	d
+RadosRef	CacheController.hpp	/^typedef shared_ptr<librados::Rados> RadosRef;$/;"	t
+RadosRef	ObjectCacheStore.hpp	/^typedef shared_ptr<librados::Rados> RadosRef;$/;"	t
+StupidPolicy	StupidPolicy.cc	/^StupidPolicy<I>::StupidPolicy(I &image_ctx, uint64_t ssd_cache_size)$/;"	f	class:rbd::cache::file::StupidPolicy
+StupidPolicy	StupidPolicy.cc	/^template class librbd::cache::file::StupidPolicy<librbd::ImageCtx>;$/;"	m	class:librbd::cache::file	typeref:class:librbd::cache::file::rbd	file:
+StupidPolicy	StupidPolicy.h	/^class StupidPolicy : public Policy {$/;"	c	namespace:rbd::cache::file
+ThreadPoolSingleton	CacheController.hpp	/^  explicit ThreadPoolSingleton(CephContext *cct)$/;"	f	class:ThreadPoolSingleton
+ThreadPoolSingleton	CacheController.hpp	/^class ThreadPoolSingleton : public ThreadPool {$/;"	c
+acceptor_	AdminSocket.hpp	/^  stream_protocol::acceptor acceptor_;$/;"	m	class:CacheServer
+block_num	ObjectCacheStore.hpp	/^    uint32_t block_num; $/;"	m	class:ObjectCacheStore
+block_size	ObjectCacheStore.hpp	/^    uint32_t block_size;$/;"	m	class:ObjectCacheStore
+block_size_	AdminSocketClient.hpp	/^  int block_size_ = 1024;$/;"	m	class:CacheClient
+block_to_offset	Policy.h	/^  virtual uint64_t block_to_offset(uint64_t block) {$/;"	f	class:rbd::cache::file::Policy
+block_to_offset	StupidPolicy.cc	/^uint64_t StupidPolicy<I>::block_to_offset(uint64_t block) {$/;"	f	class:rbd::cache::file::StupidPolicy
+buffer_	AdminSocketClient.hpp	/^  char buffer_[1024];$/;"	m	class:CacheClient
+cache	Policy.h	/^namespace cache {$/;"	n	namespace:rbd
+cache	StupidPolicy.cc	/^namespace cache {$/;"	n	namespace:rbd	file:
+cache	StupidPolicy.h	/^namespace cache {$/;"	n	namespace:rbd
+cache_table	ObjectCacheStore.hpp	/^    std::map<std::string, int> cache_table;$/;"	m	class:ObjectCacheStore
+cache_table_lock	ObjectCacheStore.hpp	/^    std::mutex cache_table_lock;$/;"	m	class:ObjectCacheStore
+cachectl	main.cc	/^CacheController *cachectl = nullptr;$/;"	v
+check_crc	RPCMessage.h	/^inline bool check_crc(const char* msg_header, const char* msg_content, const uint64_t content_size){$/;"	f
+connect	AdminSocketClient.hpp	/^  int connect() {$/;"	f	class:CacheClient
+connected	AdminSocketClient.hpp	/^  bool connected = false;$/;"	m	class:CacheClient
+crc_flag	RPCMessage.h	/^  char crc_flag[CRC_BYTE_NUM];$/;"	m	struct:MsgHeader
+cv	AdminSocketClient.hpp	/^  std::condition_variable cv;$/;"	m	class:CacheClient
+data	RPCMessage.h	/^  std::string data;$/;"	m	struct:Message
+data_	AdminSocket.hpp	/^  char data_[1024];$/;"	m	class:session
+dout_context	CacheController.hpp	20;"	d
+dout_context	ObjectCacheStore.hpp	14;"	d
+dout_prefix	CacheController.hpp	22;"	d
+dout_prefix	CacheController.hpp	23;"	d
+dout_prefix	ObjectCacheStore.hpp	16;"	d
+dout_prefix	ObjectCacheStore.hpp	17;"	d
+dout_prefix	StupidPolicy.cc	10;"	d	file:
+dout_prefix	StupidPolicy.cc	9;"	d	file:
+dout_subsys	CacheController.hpp	21;"	d
+dout_subsys	ObjectCacheStore.hpp	15;"	d
+dout_subsys	StupidPolicy.cc	8;"	d	file:
+ep_	AdminSocketClient.hpp	/^  stream_protocol::endpoint ep_;$/;"	m	class:CacheClient
+file	Policy.h	/^namespace file {$/;"	n	namespace:rbd::cache
+file	StupidPolicy.cc	/^namespace file {$/;"	n	namespace:rbd::cache	file:
+file	StupidPolicy.h	/^namespace file {$/;"	n	namespace:rbd::cache
+get_block_count	StupidPolicy.h	/^  inline uint64_t get_block_count() {$/;"	f	class:rbd::cache::file::StupidPolicy
+get_block_map	StupidPolicy.h	/^  inline void* get_block_map() {$/;"	f	class:rbd::cache::file::StupidPolicy
+get_data_size	RPCMessage.h	/^  uint64_t get_data_size() {$/;"	f	struct:MsgHeader
+get_loc	StupidPolicy.cc	/^uint32_t StupidPolicy<I>::get_loc(uint64_t block) {$/;"	f	class:rbd::cache::file::StupidPolicy
+get_result	AdminSocketClient.hpp	/^  void get_result(bool* result) {$/;"	f	class:CacheClient
+get_seq_id	RPCMessage.h	/^  uint64_t get_seq_id(){$/;"	f	struct:MsgHeader
+handle_accept	AdminSocket.hpp	/^  void handle_accept(session_ptr new_session,$/;"	f	class:CacheServer
+handle_connect	AdminSocketClient.hpp	/^  void handle_connect(const boost::system::error_code& error) {$/;"	f	class:CacheClient
+handle_read	AdminSocket.hpp	/^  void handle_read(const boost::system::error_code& error, size_t bytes_transferred) {$/;"	f	class:session
+handle_request	CacheController.hpp	/^  void handle_request(uint64_t sesstion_id, std::string msg){$/;"	f	class:CacheController
+handle_signal	CacheController.hpp	/^  void handle_signal(int signum){}$/;"	f	class:CacheController
+handle_signal	main.cc	/^static void handle_signal(int signum)$/;"	f	file:
+handle_write	AdminSocket.hpp	/^  void handle_write(const boost::system::error_code& error) {$/;"	f	class:session
+handle_write	AdminSocketClient.hpp	/^  void handle_write(const boost::system::error_code& error) {$/;"	f	class:CacheClient
+header	RPCMessage.h	/^  MsgHeader header;$/;"	m	struct:Message
+init	CacheController.hpp	/^  int init() {$/;"	f	class:CacheController
+init	ObjectCacheStore.cc	/^int ObjectCacheStore::init(bool init_way) {$/;"	f	class:ObjectCacheStore
+init_cache	ObjectCacheStore.cc	/^int ObjectCacheStore::init_cache(std::string vol_name, uint64_t vol_size) {$/;"	f	class:ObjectCacheStore
+invalidate	StupidPolicy.cc	/^int StupidPolicy<I>::invalidate(uint64_t block) {$/;"	f	class:rbd::cache::file::StupidPolicy
+io_service	CacheController.hpp	/^  boost::asio::io_service io_service;$/;"	m	class:CacheController
+io_service_	AdminSocket.hpp	/^  boost::asio::io_service& io_service_;$/;"	m	class:CacheServer
+io_service_	AdminSocketClient.hpp	/^  boost::asio::io_service& io_service_;$/;"	m	class:CacheClient
+io_service_work_	AdminSocketClient.hpp	/^  boost::asio::io_service::work io_service_work_;$/;"	m	class:CacheClient
+length	AdminSocketCommon.h	/^  uint64_t length;$/;"	m	struct:rbdsc_req_type_t
+lock_cache	ObjectCacheStore.cc	/^int ObjectCacheStore::lock_cache(std::string vol_name) {$/;"	f	class:ObjectCacheStore
+lookup_block	AdminSocketClient.hpp	/^  int lookup_block(std::string pool_name, std::string vol_name, uint64_t block_id, bool* result) {$/;"	f	class:CacheClient
+lookup_object	ObjectCacheStore.cc	/^int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_name) {$/;"	f	class:ObjectCacheStore
+m	AdminSocketClient.hpp	/^  std::mutex m;$/;"	m	class:CacheClient
+m_args	CacheController.hpp	/^  std::vector<const char*> m_args;$/;"	m	class:CacheController
+m_block_count	StupidPolicy.h	/^  uint64_t m_block_count;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_block_map	StupidPolicy.h	/^  BlockMap* m_block_map;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_block_size	Policy.h	/^  uint64_t m_block_size = 4096;$/;"	m	class:rbd::cache::file::Policy
+m_cache_file	ObjectCacheStore.hpp	/^    os::CacheStore::SyncFile *m_cache_file;$/;"	m	class:ObjectCacheStore
+m_cache_server	CacheController.hpp	/^  CacheServer *m_cache_server;$/;"	m	class:CacheController
+m_cct	CacheController.hpp	/^  CephContext *m_cct;$/;"	m	class:CacheController
+m_cct	ObjectCacheStore.hpp	/^    CephContext *m_cct;$/;"	m	class:ObjectCacheStore
+m_clean_lru	StupidPolicy.h	/^  LRU m_clean_lru;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_client_process_msg	AdminSocketClient.hpp	/^  ClientProcessMsg m_client_process_msg;$/;"	m	class:CacheClient
+m_entries	StupidPolicy.h	/^  Entries m_entries;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_free_lru	StupidPolicy.h	/^  LRU m_free_lru;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_image_ctx	StupidPolicy.h	/^  ImageCtxT &m_image_ctx;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_ioctxs	ObjectCacheStore.hpp	/^    std::map<std::string, librados::IoCtx*> m_ioctxs;$/;"	m	class:ObjectCacheStore
+m_lock	StupidPolicy.h	/^  mutable Mutex m_lock;$/;"	m	class:rbd::cache::file::StupidPolicy
+m_object_cache_store	CacheController.hpp	/^  ObjectCacheStore *m_object_cache_store;$/;"	m	class:CacheController
+m_rados	ObjectCacheStore.hpp	/^    RadosRef m_rados;$/;"	m	class:ObjectCacheStore
+m_work_queue	ObjectCacheStore.hpp	/^    ContextWQ* m_work_queue;$/;"	m	class:ObjectCacheStore
+main	main.cc	/^int main(int argc, const char **argv)$/;"	f
+map	StupidPolicy.cc	/^int StupidPolicy<I>::map(IOType io_type, uint64_t block, bool partial_block,$/;"	f	class:rbd::cache::file::StupidPolicy
+offset	AdminSocketCommon.h	/^  uint64_t offset;$/;"	m	struct:rbdsc_req_type_t
+offset_to_block	Policy.h	/^  virtual uint64_t offset_to_block(uint64_t offset){$/;"	f	class:rbd::cache::file::Policy
+op_work_queue	CacheController.hpp	/^  ContextWQ *op_work_queue;$/;"	m	class:ThreadPoolSingleton
+open_volume	AdminSocketClient.hpp	/^  int open_volume(std::string pool_name, std::string vol_name, uint64_t vol_size) {$/;"	f	class:CacheClient
+override	StupidPolicy.h	/^  uint64_t block_to_offset(uint64_t block) override;$/;"	m	class:rbd::cache::file::StupidPolicy
+pcache_op_work_queue	CacheController.hpp	/^  ContextWQ* pcache_op_work_queue;$/;"	m	class:CacheController
+pool_name	AdminSocketCommon.h	/^  char pool_name[256];$/;"	m	struct:rbdsc_req_type_t
+process_msg	AdminSocket.hpp	/^  ProcessMsg process_msg;$/;"	m	class:session
+promote_object	ObjectCacheStore.cc	/^int ObjectCacheStore::promote_object(librados::IoCtx* ioctx, $/;"	f	class:ObjectCacheStore
+rbd	Policy.h	/^namespace rbd {$/;"	n
+rbd	StupidPolicy.cc	/^namespace rbd {$/;"	n	file:
+rbd	StupidPolicy.h	/^namespace rbd {$/;"	n
+rbdsc_req_type	AdminSocketCommon.h	/^typedef uint8_t rbdsc_req_type;$/;"	t
+rbdsc_req_type_t	AdminSocketCommon.h	/^struct rbdsc_req_type_t {$/;"	s
+register_volume	AdminSocketClient.hpp	/^  int register_volume(std::string pool_name, std::string vol_name, uint64_t vol_size) {$/;"	f	class:CacheClient
+run	AdminSocketClient.hpp	/^  void run(){$/;"	f	class:CacheClient
+run	CacheController.hpp	/^  void run() {$/;"	f	class:CacheController
+send	AdminSocket.hpp	/^  void send(std::string msg) {$/;"	f	class:session
+send	AdminSocket.hpp	/^  void send(uint64_t session_id, std::string msg) {$/;"	f	class:CacheServer
+seq_id	RPCMessage.h	/^  const uint64_t seq_id;$/;"	m	struct:MsgHeader
+server_process_msg	AdminSocket.hpp	/^  ProcessMsg server_process_msg;$/;"	m	class:CacheServer
+session	AdminSocket.hpp	/^  session(uint64_t session_id, boost::asio::io_service& io_service, ProcessMsg processmsg)$/;"	f	class:session
+session	AdminSocket.hpp	/^class session : public std::enable_shared_from_this<session> {$/;"	c
+session_id	AdminSocket.hpp	/^  uint64_t session_id = 1;$/;"	m	class:CacheServer
+session_id	AdminSocket.hpp	/^  uint64_t session_id;$/;"	m	class:session
+session_map	AdminSocket.hpp	/^  std::map<uint64_t, session_ptr> session_map;$/;"	m	class:CacheServer
+session_ptr	AdminSocket.hpp	/^typedef std::shared_ptr<session> session_ptr;$/;"	t
+set_block_count	StupidPolicy.cc	/^void StupidPolicy<I>::set_block_count(uint64_t block_count) {$/;"	f	class:rbd::cache::file::StupidPolicy
+set_loc	StupidPolicy.cc	/^void StupidPolicy<I>::set_loc(uint32_t *src) {$/;"	f	class:rbd::cache::file::StupidPolicy
+set_to_base_cache	StupidPolicy.cc	/^void StupidPolicy<I>::set_to_base_cache(uint64_t block) {$/;"	f	class:rbd::cache::file::StupidPolicy
+shutdown	CacheController.hpp	/^  int shutdown() {$/;"	f	class:CacheController
+shutdown	ObjectCacheStore.cc	/^int ObjectCacheStore::shutdown() {$/;"	f	class:ObjectCacheStore
+size	AdminSocketCommon.h	/^  uint64_t size() {$/;"	f	struct:rbdsc_req_type_t
+size	RPCMessage.h	/^  uint64_t size() {$/;"	f	struct:Message
+size	RPCMessage.h	/^  uint64_t size; \/\/ msg content size$/;"	m	struct:MsgHeader
+socket	AdminSocket.hpp	/^  stream_protocol::socket& socket() {$/;"	f	class:session
+socket_	AdminSocket.hpp	/^  stream_protocol::socket socket_;$/;"	m	class:session
+socket_	AdminSocketClient.hpp	/^  stream_protocol::socket socket_;$/;"	m	class:CacheClient
+start	AdminSocket.hpp	/^  void start() {$/;"	f	class:session
+thread_pool_singleton	CacheController.hpp	/^  ThreadPoolSingleton *thread_pool_singleton;$/;"	m	class:CacheController
+tick	StupidPolicy.cc	/^void StupidPolicy<I>::tick() {$/;"	f	class:rbd::cache::file::StupidPolicy
+to_buffer	AdminSocketCommon.h	/^  std::string to_buffer() {$/;"	f	struct:rbdsc_req_type_t
+to_buffer	RPCMessage.h	/^  std::string to_buffer() {$/;"	f	struct:Message
+type	AdminSocketCommon.h	/^  rbdsc_req_type type;$/;"	m	struct:rbdsc_req_type_t
+usage	main.cc	/^void usage() {$/;"	f
+vol_name	AdminSocketCommon.h	/^  char vol_name[256];$/;"	m	struct:rbdsc_req_type_t
+vol_size	AdminSocketCommon.h	/^  uint64_t vol_size;$/;"	m	struct:rbdsc_req_type_t
+~CacheController	CacheController.hpp	/^  ~CacheController(){}$/;"	f	class:CacheController
+~Policy	Policy.h	/^  virtual ~Policy() {$/;"	f	class:rbd::cache::file::Policy
+~StupidPolicy	StupidPolicy.cc	/^StupidPolicy<I>::~StupidPolicy() {$/;"	f	class:rbd::cache::file::StupidPolicy

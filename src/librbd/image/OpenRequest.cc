@@ -8,6 +8,7 @@
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/cache/ObjectCacherObjectDispatch.h"
+#include "librbd/cache/SharedPersistentObjectCacherObjectDispatch.cc"
 #include "librbd/image/CloseRequest.h"
 #include "librbd/image/RefreshRequest.h"
 #include "librbd/image/SetSnapRequest.h"
@@ -447,12 +448,20 @@ Context *OpenRequest<I>::handle_refresh(int *result) {
 
 template <typename I>
 Context *OpenRequest<I>::send_init_cache(int *result) {
+
+  CephContext *cct = m_image_ctx->cct;
   // cache is disabled or parent image context
   if (!m_image_ctx->cache || m_image_ctx->child != nullptr) {
+
+    if (m_image_ctx->child != nullptr) {
+      ldout(cct, 10) << this << " " << "setting up parent cache"<< dendl;
+      auto cache = cache::SharedPersistentObjectCacherObjectDispatch<I>::create(m_image_ctx);
+      cache->init();
+    }
+
     return send_register_watch(result);
   }
 
-  CephContext *cct = m_image_ctx->cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   auto cache = cache::ObjectCacherObjectDispatch<I>::create(m_image_ctx);
