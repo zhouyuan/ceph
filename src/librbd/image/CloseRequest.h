@@ -53,6 +53,9 @@ private:
    * SHUT_DOWN_OBJECT_DISPATCHER
    *    |
    *    v
+   * SHUTDOWN_CACHE
+   *    |
+   *    v
    * FLUSH_OP_WORK_QUEUE
    *    |
    *    v (skip if no parent)
@@ -99,6 +102,9 @@ private:
 
   void send_shut_down_object_dispatcher();
   void handle_shut_down_object_dispatcher(int r);
+
+  void send_shut_down_image_cache();
+  void handle_shut_down_image_cache(int r);
 
   void send_flush_op_work_queue();
   void handle_flush_op_work_queue(int r);
