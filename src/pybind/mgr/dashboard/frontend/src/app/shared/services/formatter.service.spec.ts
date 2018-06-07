@@ -26,26 +26,6 @@ describe('FormatterService', () => {
     expect(service).toBeTruthy();
   });
 
-  describe('truncate', () => {
-    it('should do test integer values', () => {
-      expect(service.truncate('1234', 8)).toBe('1234');
-      expect(service.truncate(1234, 8)).toBe('1234');
-    });
-
-    it('should do test floating values', () => {
-      const value = '1234.567899000';
-      expect(service.truncate(value, 0)).toBe('1235');
-      expect(service.truncate(value, 1)).toBe('1234.6');
-      expect(service.truncate(value, 3)).toBe('1234.568');
-      expect(service.truncate(value, 4)).toBe('1234.5679');
-      expect(service.truncate(value, 5)).toBe('1234.5679');
-      expect(service.truncate(value, 6)).toBe('1234.567899');
-      expect(service.truncate(value, 7)).toBe('1234.567899');
-      expect(service.truncate(value, 10)).toBe('1234.567899');
-      expect(service.truncate(100.0, 4)).toBe('100');
-    });
-  });
-
   describe('format_number', () => {
     const formats = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
 
@@ -56,22 +36,22 @@ describe('FormatterService', () => {
     });
 
     it('should test some values', () => {
-      expect(service.format_number('0', 1024, formats)).toBe('0B');
-      expect(service.format_number('0.1', 1024, formats)).toBe('0.1B');
-      expect(service.format_number('1.2', 1024, formats)).toBe('1.2B');
-      expect(service.format_number('1', 1024, formats)).toBe('1B');
-      expect(service.format_number('1024', 1024, formats)).toBe('1KiB');
-      expect(service.format_number(23.45678 * Math.pow(1024, 3), 1024, formats)).toBe('23.4568GiB');
+      expect(service.format_number('0', 1024, formats)).toBe('0 B');
+      expect(service.format_number('0.1', 1024, formats)).toBe('0.1 B');
+      expect(service.format_number('1.2', 1024, formats)).toBe('1.2 B');
+      expect(service.format_number('1', 1024, formats)).toBe('1 B');
+      expect(service.format_number('1024', 1024, formats)).toBe('1 KiB');
+      expect(service.format_number(23.45678 * Math.pow(1024, 3), 1024, formats)).toBe('23.5 GiB');
       expect(service.format_number(23.45678 * Math.pow(1024, 3), 1024, formats, 2)).toBe(
-        '23.46GiB'
+        '23.46 GiB'
       );
     });
 
     it('should test some dimless values', () => {
       expect(dimlessPipe.transform(0.6)).toBe('0.6');
-      expect(dimlessPipe.transform(1000.608)).toBe('1.0006k');
-      expect(dimlessPipe.transform(1e10)).toBe('10G');
-      expect(dimlessPipe.transform(2.37e16)).toBe('23.7P');
+      expect(dimlessPipe.transform(1000.608)).toBe('1 k');
+      expect(dimlessPipe.transform(1e10)).toBe('10 G');
+      expect(dimlessPipe.transform(2.37e16)).toBe('23.7 P');
     });
   });
 
@@ -97,10 +77,10 @@ describe('FormatterService', () => {
     });
 
     it('should convert values to human readable again', () => {
-      convertToBytesAndBack('1.1MiB');
-      convertToBytesAndBack('1.0MiB', '1MiB');
-      convertToBytesAndBack('8.9GiB');
-      convertToBytesAndBack('123.456EiB');
+      convertToBytesAndBack('1.1 MiB');
+      convertToBytesAndBack('1.0MiB', '1 MiB');
+      convertToBytesAndBack('8.9 GiB');
+      convertToBytesAndBack('123.5 EiB');
     });
   });
 });
