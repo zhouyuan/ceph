@@ -11,7 +11,9 @@
 
 
 ObjectCacheStore::ObjectCacheStore(CephContext *cct, ContextWQ* work_queue)
-      : m_cct(cct), m_work_queue(work_queue),
+      : m_cct(cct), 
+        m_work_queue(work_queue),
+        m_cache_table(1024, 0, 0.9), //  TODO read param from config file...
         m_cache_table_lock("rbd::cache::ObjectCacheStore"),
         m_rados(new librados::Rados()) {
 }
@@ -20,8 +22,7 @@ ObjectCacheStore::~ObjectCacheStore() {
 
 }
 
-int ObjectCacheStore::init(bool reset) {
-
+int ObjectCacheStore::init(bool init_way) {
   int ret = m_rados->init_with_context(m_cct);
   if(ret < 0) {
     lderr(m_cct) << "fail to init Ceph context" << dendl;
@@ -33,6 +34,7 @@ int ObjectCacheStore::init(bool reset) {
     lderr(m_cct) << "fail to conect to cluster" << dendl;
     return ret;
   }
+
   //TODO(): check existing cache objects
   return ret;
 }
@@ -55,16 +57,18 @@ int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name)
   
   librados::IoCtx* ioctx = m_ioctxs[pool_name]; 
 
-  //promoting: update metadata 
-  {
-    Mutex::Locker locker(m_cache_table_lock);
-    m_cache_table.emplace(cache_file_name, PROMOTING);
-  }
+  // insert new cache file name. 
+  assert(m_cache_table.lookup(cache_file_name) == false);
+  m_cache_table.insert(cache_file_name);
 
   librados::bufferlist read_buf;      
   int object_size = 4096*1024; //TODO(): read config from image metadata
 
+
   //TODO(): async promote
+  
+  // update cache file status 
+  m_cache_table.set_status(cache_file_name, PROMOTING);
   ret = promote_object(ioctx, object_name, read_buf, object_size);
   if (ret == -ENOENT) {
     read_buf.append(std::string(object_size, '0'));
@@ -76,46 +80,93 @@ int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name)
     return ret;
   }
 
+  // TODO : these work can be placed into CacheFile class. 
   // persistent to cache
   os::CacheStore::SyncFile cache_file(m_cct, cache_file_name);
   cache_file.open();
   ret = cache_file.write_object_to_file(read_buf, object_size);
   
-  assert(m_cache_table.find(cache_file_name) != m_cache_table.end()); 
-
   // update metadata
-  {
-    Mutex::Locker locker(m_cache_table_lock);
-    m_cache_table.emplace(cache_file_name, PROMOTED);
-  }
+  m_cache_table.set_status(cache_file_name, PROMOTED);
 
-  return ret;
-
+  return 0;
 }
  
 int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_name) {
 
+  int ret; 
+
   std::string cache_file_name =  pool_name + object_name;
+
   {
     Mutex::Locker locker(m_cache_table_lock);
 
-    auto it = m_cache_table.find(cache_file_name);
-    if (it != m_cache_table.end()) {
-
-      if (it->second == PROMOTING) {
-        return -1;
-      } else if (it->second == PROMOTED) {
-        return 0;
-      } else {
-        assert(0);
+    bool if_hit;
+    std::string file_name_out;
+    if_hit = m_cache_table.lookup_and_touch(file_name_out);
+    if (if_hit) {
+      switch (m_cache_table.get_status(file_name_out)) {
+        case PROMOTING:
+          return -1;
+        case PROMOTED:
+          return 0;
+        case IN_USING:
+          return 0;
+        case EVICTING:
+          return -1;
+        case EVICTED:
+          return -1;
       }
     }
   }
 
-  int ret = do_promote(pool_name, object_name);
+   // if miss, promote it.
+  do_promote(pool_name, object_name);
 
   return ret;
 }
+
+//
+void ObjectCacheStore::evict_thread_function() 
+{
+  while(1) 
+  {
+    if(m_cache_table.if_lower_evict_level()) {
+       // TODO or sleep , or wakeup ?
+      continue;
+    }
+
+    std::string cache_file_name_out;
+    bool if_obtain = m_cache_table.get_the_lowest_priority_key(cache_file_name_out);
+    if(if_obtain) 
+    {
+      switch(m_cache_table.get_status(cache_file_name_out)) {
+        case NONE: 
+          // TODO
+          break;
+        case PROMOTING:
+          break;
+        case PROMOTED:
+          m_cache_table.remove(cache_file_name_out);
+          break;
+        case IN_USING :
+          m_cache_table.touch(cache_file_name_out);
+          break;
+        case EVICTING: 
+          break;
+        case EVICTED:
+          break;
+      }
+
+    } else {
+      assert(0);
+    }
+
+  } //while
+  
+}
+
+
 
 int ObjectCacheStore::shutdown() {
   m_rados->shutdown();
@@ -130,7 +181,8 @@ int ObjectCacheStore::lock_cache(std::string vol_name) {
   return 0;
 }
 
-int ObjectCacheStore::promote_object(librados::IoCtx* ioctx, std::string object_name, librados::bufferlist read_buf, uint64_t read_len) {
+int ObjectCacheStore::promote_object(librados::IoCtx* ioctx, std::string object_name, 
+        librados::bufferlist read_buf, uint64_t read_len) {
   int ret;
 
   librados::AioCompletion* read_completion = librados::Rados::aio_create_completion(); 
@@ -138,7 +190,6 @@ int ObjectCacheStore::promote_object(librados::IoCtx* ioctx, std::string object_
   ret = ioctx->aio_read(object_name, read_completion, &read_buf, read_len, 0);
   if(ret < 0) {
     lderr(m_cct) << "fail to read from rados" << dendl;
-    return ret;
   }
   read_completion->wait_for_complete();
   ret = read_completion->get_return_value();

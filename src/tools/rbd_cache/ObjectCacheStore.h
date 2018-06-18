@@ -14,27 +14,37 @@
 #include "librbd/ImageState.h"
 #include "os/CacheStore/SyncFile.h"
 
+#include "cache_table.hpp"
+
 using librados::Rados;
 using librados::IoCtx;
 
 typedef shared_ptr<librados::Rados> RadosRef;
 typedef shared_ptr<librados::IoCtx> IoCtxRef;
 
+// TODO execute evict_thread_function, ceph thread or new thread ??
+//
 class ObjectCacheStore 
 {
   public:
     ObjectCacheStore(CephContext *cct, ContextWQ* work_queue);
     ~ObjectCacheStore();
 
-    int init(bool reset);
+    int init(bool init_way);
 
     int shutdown();
 
     int lookup_object(std::string pool_name, std::string object_name);
 
+    // TODO
+    int read_object_from_cache(std::string pool_name, std::string object_name)
+    {}
+
     int init_cache(std::string vol_name, uint64_t vol_size);
 
     int lock_cache(std::string vol_name);
+
+    void evict_thread_function();
 
   private:
     int _evict_object();
@@ -45,21 +55,21 @@ class ObjectCacheStore
                        librados::bufferlist read_buf,
                        uint64_t length);
 
-    enum {
-      PROMOTING = 0, 
-      PROMOTED, 
-    };
 
     CephContext *m_cct;
-    ContextWQ* m_work_queue;
-    Mutex m_cache_table_lock;
     RadosRef m_rados;
+    ContextWQ* m_work_queue;
 
-    std::map<std::string, uint8_t> m_cache_table;
+    CacheTable m_cache_table;
+    Mutex m_cache_table_lock;
 
     std::map<std::string, librados::IoCtx*> m_ioctxs;
 
     os::CacheStore::SyncFile *m_cache_file;
+     
+    // TODO
+    //bool evict_open; 
+
 };
 
 #endif
