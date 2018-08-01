@@ -114,7 +114,18 @@ private:
 
   ImageCtxT* m_image_ctx;
 
+  // old interface 
   void client_handle_request(std::string msg);
+
+  // new interface will be wrapped by ProcessMsg0
+  void handle_object_reply(int r, std::string reply, 
+                           const std::string& oid, 
+                           ceph::bufferlist* read_data,  
+                           uint64_t object_len, 
+                           uint64_t object_off,
+                           io::DispatchResult* dispatch_result,
+                           Context* on_dispatched);
+
   rbd::cache::CacheClient *m_cache_client = nullptr;
   boost::asio::io_service io_service;
 };

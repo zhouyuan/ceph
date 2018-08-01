@@ -12,6 +12,7 @@
 #include "librbd/io/Utils.h"
 #include "osd/osd_types.h"
 #include "osdc/WritebackHandler.h"
+#include "ProcessMsg.hpp"
 #include <vector>
 
 #define dout_subsys ceph_subsys_rbd
@@ -68,6 +69,8 @@ void SharedPersistentObjectCacherObjectDispatch<I>::init() {
     ret = m_cache_client->register_volume(m_image_ctx->data_ctx.get_pool_name(),
                                     m_image_ctx->id, m_image_ctx->size);
 
+    // TODO  add wait...
+    
     if (ret >= 0) {
       // add ourself to the IO object dispatcher chain
       m_image_ctx->io_object_dispatcher->register_object_dispatch(this);
@@ -93,20 +96,18 @@ bool SharedPersistentObjectCacherObjectDispatch<I>::read(
                                                       on_dispatched);
 
   if (m_cache_client && m_cache_client->connected && m_object_store) {
-    bool exists;
-    m_cache_client->lookup_object(m_image_ctx->data_ctx.get_pool_name(),
-      m_image_ctx->id, oid, &exists);
 
-    // try to read from parent image
-    ldout(cct, 20) << "SRO cache object exists:" << exists << dendl;
-    if (exists) {
-      int r = m_object_store->read_object(oid, read_data, object_off, object_len, on_dispatched);
-      if (r != 0) {
-        *dispatch_result = io::DISPATCH_RESULT_COMPLETE;
-	on_dispatched->complete(r);
-        return true;
-      }
-    }
+    auto lookup_callback = make_lambda_process_function(
+        [this, on_dispatched, oid, read_data, object_off, object_len, dispatch_result](int r, std::string reply){
+           // TODO r express domain socket state.
+          handle_object_reply(r, reply, oid, read_data, object_len, object_off, dispatch_result, on_dispatched);
+        });
+
+    m_cache_client->lookup_object(m_image_ctx->data_ctx.get_pool_name(),
+      m_image_ctx->id, oid, lookup_callback);
+
+    return true;
+
   }
 
   ldout(cct, 20) << "Continue read from RADOS" << dendl;
@@ -117,10 +118,24 @@ bool SharedPersistentObjectCacherObjectDispatch<I>::read(
 
 template <typename I>
 void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::string msg) {
+  // old interface
+}
+
+// handle controller's reply
+template <typename I>
+void SharedPersistentObjectCacherObjectDispatch<I>::handle_object_reply(
+                int r, 
+                std::string reply, 
+                const std::string &oid,
+                ceph::bufferlist* read_data,
+                uint64_t object_len,
+                uint64_t object_off,
+                io::DispatchResult* dispatch_result, 
+                Context* on_dispatched) {
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
-  rbd::cache::rbdsc_req_type_t *io_ctx = (rbd::cache::rbdsc_req_type_t*)(msg.c_str());
+  rbd::cache::rbdsc_req_type_t *io_ctx = (rbd::cache::rbdsc_req_type_t*)(reply.c_str());
 
   switch (io_ctx->type) {
     case RBDSC_REGISTER_REPLY: {
@@ -131,20 +146,29 @@ void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::s
       break;
     }
     case RBDSC_READ_REPLY: {
-      ldout(cct, 20) << "SRO cache client start to read cache" << dendl;
-      //TODO(): should call read here
 
+      ldout(cct, 20) << "SRO cache client start to read cache" << dendl;
+      
+      // sync read TODO
+      int r = m_object_store->read_object(oid, read_data, object_off, object_len, on_dispatched);
+      if (r != 0) {
+        *dispatch_result = io::DISPATCH_RESULT_COMPLETE;
+	on_dispatched->complete(r);
+      }
+  
       break;
     }
     case RBDSC_READ_RADOS: {
+      
       ldout(cct, 20) << "SRO cache client start to read rados" << dendl;
-      //TODO(): should call read here
+
+      *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
+      on_dispatched->complete(0);
 
       break;
     }
     default: ldout(cct, 20) << "nothing" << dendl;
       break;
-    
   }
 }
 
