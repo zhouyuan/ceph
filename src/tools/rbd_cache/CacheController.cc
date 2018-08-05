@@ -76,6 +76,9 @@ void CacheController::run() {
   }
 }
 
+// thread pool of domain socket execute this function.
+// register event : directly execute.
+// reading event : async execute. (maybe rados to execute.)
 void CacheController::handle_request(uint64_t sesstion_id, std::string msg){
   rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(msg.c_str());
 
@@ -91,14 +94,21 @@ void CacheController::handle_request(uint64_t sesstion_id, std::string msg){
       break;
     }
     case RBDSC_READ: {
+
+      // TODO when handle_request is over, will io_ctx/msg/session_id be destoried ? 
+      // especially for io_ctx !!!!
+      auto lookup_callback = make_lambda_process_function(
+            [this, sesstion_id, io_ctx, msg](int r, std::string temp) {
+                if(r < 0) { 
+                  io_ctx->type = RBDSC_READ_RADOS;
+                } else {
+                  io_ctx->type = RBDSC_READ_REPLY;
+                }
+                m_cache_server->send(sesstion_id, std::string((char*)io_ctx, msg.size()));
+            });
+        
       // lookup object in local cache store
-      ret = m_object_cache_store->lookup_object(io_ctx->pool_name, io_ctx->vol_name);
-      if (ret < 0) {
-        io_ctx->type = RBDSC_READ_RADOS;
-      } else {
-        io_ctx->type = RBDSC_READ_REPLY;
-      }
-      m_cache_server->send(sesstion_id, std::string((char*)io_ctx, msg.size()));
+      m_object_cache_store->lookup_object(io_ctx->pool_name, io_ctx->vol_name, lookup_callback);
 
       break;
     }
