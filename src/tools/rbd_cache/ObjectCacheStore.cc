@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "ObjectCacheStore.h"
+#include "librbd/Utils.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_cache
@@ -9,8 +10,13 @@
 #define dout_prefix *_dout << "rbd::cache::ObjectCacheStore: " << this << " " \
                            << __func__ << ": "
 
+
+
 namespace rbd {
 namespace cache {
+
+using librbd::util::create_context_callback;
+using librbd::util::create_rados_callback;
 
 ObjectCacheStore::ObjectCacheStore(CephContext *cct, ContextWQ* work_queue)
       : m_cct(cct), m_work_queue(work_queue),
@@ -39,7 +45,8 @@ int ObjectCacheStore::init(bool reset) {
   return ret;
 }
 
-int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name) {
+int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name, 
+                                 ProcessMsg0* on_finish) {
   int ret = 0;
   std::string cache_file_name =  pool_name + object_name;
 
@@ -66,36 +73,45 @@ int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name)
   librados::bufferlist* read_buf = new librados::bufferlist();
   int object_size = 4096*1024; //TODO(): read config from image metadata
 
+  auto promote_callback = make_lambda_process_function(
+            [on_finish, this, read_buf, object_size, cache_file_name](int r, std::string temp) {
+
+               if (r == -ENOENT) {
+                 read_buf->append(std::string(object_size, '0'));
+                 r = 0;
+               }
+
+               if( r < 0) {
+                 lderr(m_cct) << "fail to read from rados" << dendl;
+                 on_finish->process_msg(r, "");
+                 return;
+               }
+
+               // persistent to cache
+               librbd::cache::SyncFile cache_file(m_cct, cache_file_name);
+               cache_file.open();
+               cache_file.write_object_to_file(*read_buf, object_size);
+               
+               assert(m_cache_table.find(cache_file_name) != m_cache_table.end()); 
+
+               // update metadata
+               {
+                 Mutex::Locker locker(m_cache_table_lock);
+                 m_cache_table.emplace(cache_file_name, PROMOTED);
+               }
+                            
+                on_finish->process_msg(r, "");
+            });
+
   //TODO(): async promote
-  ret = promote_object(ioctx, object_name, read_buf, object_size);
-  if (ret == -ENOENT) {
-    read_buf->append(std::string(object_size, '0'));
-    ret = 0;
-  }
+  ret = promote_object(ioctx, object_name, read_buf, object_size, promote_callback);
 
-  if( ret < 0) {
-    lderr(m_cct) << "fail to read from rados" << dendl;
-    return ret;
-  }
-
-  // persistent to cache
-  librbd::cache::SyncFile cache_file(m_cct, cache_file_name);
-  cache_file.open();
-  ret = cache_file.write_object_to_file(*read_buf, object_size);
-  
-  assert(m_cache_table.find(cache_file_name) != m_cache_table.end()); 
-
-  // update metadata
-  {
-    Mutex::Locker locker(m_cache_table_lock);
-    m_cache_table.emplace(cache_file_name, PROMOTED);
-  }
-
-  return ret;
+  return 0;
 
 }
  
-int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_name) {
+int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_name, 
+                                    ProcessMsg0* on_finish) {
 
   std::string cache_file_name =  pool_name + object_name;
   {
@@ -105,8 +121,10 @@ int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_na
     if (it != m_cache_table.end()) {
 
       if (it->second == PROMOTING) {
-        return -1;
+        on_finish->process_msg(-1, ""); // null -> string 
+        return 0;
       } else if (it->second == PROMOTED) {
+        on_finish->process_msg(0, ""); 
         return 0;
       } else {
         assert(0);
@@ -114,9 +132,9 @@ int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_na
     }
   }
 
-  int ret = do_promote(pool_name, object_name);
+  do_promote(pool_name, object_name, on_finish);
 
-  return ret;
+  return 0;
 }
 
 int ObjectCacheStore::shutdown() {
@@ -132,20 +150,23 @@ int ObjectCacheStore::lock_cache(std::string vol_name) {
   return 0;
 }
 
-int ObjectCacheStore::promote_object(librados::IoCtx* ioctx, std::string object_name, librados::bufferlist* read_buf, uint64_t read_len) {
+int ObjectCacheStore::promote_object(librados::IoCtx* ioctx, std::string object_name, 
+                                     librados::bufferlist* read_buf, uint64_t read_len,
+                                     ProcessMsg0* on_finish) {
   int ret;
 
-  librados::AioCompletion* read_completion = librados::Rados::aio_create_completion(); 
+  // TODO look for other callback implements
+  // FIXME FIXME FIXME FIXME
+  Context* rados_on_finish = new FunctionContext(
+        [this, on_finish](int r) {
+            on_finish->process_msg(r, "");
+        });
+
+  librados::AioCompletion* read_completion = create_rados_callback(rados_on_finish);
 
   ret = ioctx->aio_read(object_name, read_completion, read_buf, read_len, 0);
-  if(ret < 0) {
-    lderr(m_cct) << "fail to read from rados" << dendl;
-    return ret;
-  }
-  read_completion->wait_for_complete();
-  ret = read_completion->get_return_value();
+
   return ret;
-  
 }
 
 } // namespace cache

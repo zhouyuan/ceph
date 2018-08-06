@@ -15,6 +15,7 @@
 #include "include/assert.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
+#include "librbd/cache/ProcessMsg.hpp"
 
 #include "CacheControllerSocket.hpp"
 #include "ObjectCacheStore.h"

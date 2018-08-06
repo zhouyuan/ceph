@@ -13,6 +13,8 @@
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/cache/SharedPersistentObjectCacherFile.h"
+#include "librbd/cache/ProcessMsg.hpp"
+#include "librbd/Utils.h"
 
 using librados::Rados;
 using librados::IoCtx;
@@ -33,7 +35,7 @@ class ObjectCacheStore
 
     int shutdown();
 
-    int lookup_object(std::string pool_name, std::string object_name);
+    int lookup_object(std::string pool_name, std::string object_name, ProcessMsg0* on_finish);
 
     int init_cache(std::string vol_name, uint64_t vol_size);
 
@@ -42,11 +44,11 @@ class ObjectCacheStore
   private:
     int _evict_object();
 
-    int do_promote(std::string pool_name, std::string object_name);
+    int do_promote(std::string pool_name, std::string object_name, ProcessMsg0* on_finish);
 
     int promote_object(librados::IoCtx*, std::string object_name,
                        librados::bufferlist* read_buf,
-                       uint64_t length);
+                       uint64_t length, ProcessMsg0* on_finish);
 
     enum {
       PROMOTING = 0, 

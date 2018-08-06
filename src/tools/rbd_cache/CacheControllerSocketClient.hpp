@@ -9,6 +9,8 @@
 #include <boost/algorithm/string.hpp>
 #include "include/assert.h"
 #include "CacheControllerSocketCommon.h"
+// TODO modify file path
+#include "../../librbd/cache/ProcessMsg.hpp"
 
 
 using boost::asio::local::stream_protocol;
@@ -72,7 +74,7 @@ public:
     return 0;
   }
 
-  int lookup_object(std::string pool_name, std::string vol_name, std::string object_id, bool* result) {
+  int lookup_object(std::string pool_name, std::string vol_name, std::string object_id, ProcessMsg0* _process_msg) {
     rbdsc_req_type_t *message = new rbdsc_req_type_t();
     message->type = RBDSC_READ;
     memcpy(message->pool_name, pool_name.c_str(), pool_name.size());
@@ -82,26 +84,27 @@ public:
     message->length = 0;
 
     boost::asio::async_write(socket_,  boost::asio::buffer((char*)message, message->size()),
-        [this, result](const boost::system::error_code& err, size_t cb) {
+        [this, _process_msg](const boost::system::error_code& err, size_t cb) {
         if (!err) {
-          get_result(result);
+          get_result(_process_msg);
         } else {
           return -1;
         }
     });
     std::unique_lock<std::mutex> lk(m);
-    cv.wait(lk);
     return 0;
   }
 
-  void get_result(bool* result) {
+  void get_result(ProcessMsg0* _process_msg) {
     boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
         boost::asio::transfer_exactly(544),
-        [this, result](const boost::system::error_code& err, size_t cb) {
+        [this, _process_msg](const boost::system::error_code& err, size_t cb) {
         if (!err) {
-            *result = true;
-            cv.notify_one();
-            m_client_process_msg(std::string(buffer_, cb));
+            if(_process_msg != nullptr) {
+              _process_msg->process_msg(0, std::string(buffer_, cb));
+            } else {
+              m_client_process_msg(std::string(buffer_, cb));
+            }
         } else {
             return -1;
         }
