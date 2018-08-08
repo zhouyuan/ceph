@@ -1,12 +1,15 @@
 #ifndef RBD_CACHE_POLICY_HPP
 #define RBD_CACHE_POLICY_HPP
 
+namespace rbd {
+namespace cache {
+
 enum CACHESTATUS {
-  NONE = 0,
-  PROMOTING,
-  PROMOTED,
-  EVICTING,
-  EVICTED,
+  OBJ_CACHE_NONE = 0,
+  OBJ_CACHE_PROMOTING,
+  OBJ_CACHE_PROMOTED,
+  OBJ_CACHE_EVICTING,
+  OBJ_CACHE_EVICTED,
 };
 
 
@@ -19,4 +22,7 @@ public:
   virtual void update_status(std::string, CACHESTATUS) = 0;
   virtual CACHESTATUS get_status(std::string) = 0;
 };
+
+} // namespace cache
+} // namespace rbd
 #endif

@@ -15,7 +15,12 @@ namespace cache {
 ObjectCacheStore::ObjectCacheStore(CephContext *cct, ContextWQ* work_queue)
       : m_cct(cct), m_work_queue(work_queue),
         m_rados(new librados::Rados()) {
-  m_policy = new SimplePolicy(4096, 0.9); // TODO
+
+  uint64_t object_cache_entries =
+    cct->_conf.get_val<int64_t>("rbd_shared_cache_entries");
+
+  //TODO(): allow to set level
+  m_policy = new SimplePolicy(object_cache_entries, 0.9);
 }
 
 ObjectCacheStore::~ObjectCacheStore() {
@@ -35,7 +40,13 @@ int ObjectCacheStore::init(bool reset) {
     lderr(m_cct) << "fail to conect to cluster" << dendl;
     return ret;
   }
+
+  std::string cache_path = m_cct->_conf.get_val<std::string>("rbd_shared_cache_path");
   //TODO(): check existing cache objects
+  if(reset) {
+    std::string cmd = "exec rm -rf " + cache_path + "/rbd_cache*; exec mkdir -p " + cache_path;
+    system(cmd.c_str());
+  }
   return ret;
 }
 
@@ -58,10 +69,6 @@ int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name)
   
   librados::IoCtx* ioctx = m_ioctxs[pool_name]; 
 
-  //promoting: update metadata 
-  m_policy->update_status(cache_file_name, PROMOTING);
-  assert(PROMOTING == m_policy->get_status(cache_file_name));
-
   librados::bufferlist* read_buf = new librados::bufferlist();
   int object_size = 4096*1024; //TODO(): read config from image metadata
 
@@ -83,9 +90,9 @@ int ObjectCacheStore::do_promote(std::string pool_name, std::string object_name)
   ret = cache_file.write_object_to_file(*read_buf, object_size);
   
   // update metadata
-  assert(PROMOTING == m_policy->get_status(cache_file_name));
-  m_policy->update_status(cache_file_name, PROMOTED);
-  assert(PROMOTED == m_policy->get_status(cache_file_name));
+  assert(OBJ_CACHE_PROMOTING == m_policy->get_status(cache_file_name));
+  m_policy->update_status(cache_file_name, OBJ_CACHE_PROMOTED);
+  assert(OBJ_CACHE_PROMOTED == m_policy->get_status(cache_file_name));
 
   return ret;
 
@@ -97,18 +104,15 @@ int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_na
 
   std::string cache_file_name =  pool_name + object_name;
 
-  // TODO lookup and return status;
-
   CACHESTATUS ret;
   ret = m_policy->lookup_object(cache_file_name);
 
   switch(ret) {
-    case NONE:
+    case OBJ_CACHE_NONE:
       return do_promote(pool_name, object_name);
-    case PROMOTING:
-      return -1;
-    case PROMOTED:
+    case OBJ_CACHE_PROMOTED:
       return 0;
+    case OBJ_CACHE_PROMOTING:
     default:
       return -1;
   }
@@ -127,11 +131,11 @@ void ObjectCacheStore::evict_thread_body() {
     // TODO
     // delete temp_cache_file file.
 
-    assert(EVICTING == m_policy->get_status(temp_cache_file));
+    assert(OBJ_CACHE_EVICTING == m_policy->get_status(temp_cache_file));
 
-    m_policy->update_status(temp_cache_file, EVICTED);
+    m_policy->update_status(temp_cache_file, OBJ_CACHE_EVICTED);
 
-    assert(NONE == m_policy->get_status(temp_cache_file));
+    assert(OBJ_CACHE_NONE == m_policy->get_status(temp_cache_file));
   }
 }
 
