@@ -8,6 +8,7 @@
 #include <boost/bind.hpp>
 #include <boost/algorithm/string.hpp>
 #include "include/assert.h"
+#include "include/Context.h"
 #include "CacheControllerSocketCommon.h"
 
 
@@ -72,6 +73,30 @@ public:
     return 0;
   }
 
+  int lookup_object(std::string pool_name, std::string vol_name, std::string object_id, Context* on_finish) {
+    rbdsc_req_type_t *message = new rbdsc_req_type_t();
+    message->type = RBDSC_READ;
+    memcpy(message->pool_name, pool_name.c_str(), pool_name.size());
+    memcpy(message->vol_name, object_id.c_str(), object_id.size());
+    message->vol_size = 0;
+    message->offset = 0;
+    message->length = 0;
+
+    boost::asio::async_write(socket_,  boost::asio::buffer((char*)message, message->size()),
+        [this, on_finish](const boost::system::error_code& err, size_t cb) {
+        if (!err) {
+          get_result(on_finish);
+        } else {
+          return -1;
+        }
+    });
+
+    std::unique_lock<std::mutex> lk(m);
+    //cv.wait(lk);
+    cv.wait_for(lk, std::chrono::milliseconds(100));
+    return 0;
+  }
+
   int lookup_object(std::string pool_name, std::string vol_name, std::string object_id, bool* result) {
     rbdsc_req_type_t *message = new rbdsc_req_type_t();
     message->type = RBDSC_READ;
@@ -93,6 +118,31 @@ public:
     //cv.wait(lk);
     cv.wait_for(lk, std::chrono::milliseconds(100));
     return 0;
+  }
+
+  void get_result(Context* on_finish) {
+    boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
+        boost::asio::transfer_exactly(544),
+        [this, on_finish](const boost::system::error_code& err, size_t cb) {
+        if (cb != 544) {
+	  assert(0);
+        }
+        if (!err) {
+	    rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(buffer_);
+            if (io_ctx->type == RBDSC_READ_REPLY) {
+	      on_finish->complete(true);
+              cv.notify_one();
+              return;
+            } else {
+	      on_finish->complete(false);
+              cv.notify_one();
+              return;
+            }
+        } else {
+	    assert(0);
+            return on_finish->complete(false);
+        }
+    });
   }
 
   void get_result(bool* result) {
