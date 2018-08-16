@@ -76,7 +76,7 @@ void CacheController::run() {
   }
 }
 
-void CacheController::handle_request(uint64_t sesstion_id, std::string msg){
+void CacheController::handle_request(uint64_t session_id, std::string msg){
   rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(msg.c_str());
 
   int ret = 0;
@@ -86,7 +86,7 @@ void CacheController::handle_request(uint64_t sesstion_id, std::string msg){
       // init cache layout for volume        
       m_object_cache_store->init_cache(io_ctx->vol_name, io_ctx->vol_size);
       io_ctx->type = RBDSC_REGISTER_REPLY;
-      m_cache_server->send(sesstion_id, std::string((char*)io_ctx, msg.size()));
+      m_cache_server->send(session_id, std::string((char*)io_ctx, msg.size()));
 
       break;
     }
@@ -94,11 +94,17 @@ void CacheController::handle_request(uint64_t sesstion_id, std::string msg){
       // lookup object in local cache store
       ret = m_object_cache_store->lookup_object(io_ctx->pool_name, io_ctx->vol_name);
       if (ret < 0) {
+        std::cerr << "rados " << "\n";
         io_ctx->type = RBDSC_READ_RADOS;
       } else {
+        std::cerr << "cache " << "\n";
         io_ctx->type = RBDSC_READ_REPLY;
       }
-      m_cache_server->send(sesstion_id, std::string((char*)io_ctx, msg.size()));
+      std::cout << "write type " << int(io_ctx->type) <<"\n";
+      if (io_ctx->type != RBDSC_READ_REPLY) {
+        assert(0);
+      }
+      m_cache_server->send(session_id, std::string((char*)io_ctx, msg.size()));
 
       break;
     }
