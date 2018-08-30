@@ -33,6 +33,7 @@ SharedPersistentObjectCacherObjectDispatch<I>::~SharedPersistentObjectCacherObje
     delete m_cache_client;
 }
 
+// TODO if connect fails, init will return error to high layer.
 template <typename I>
 void SharedPersistentObjectCacherObjectDispatch<I>::init() {
   auto cct = m_image_ctx->cct;
@@ -47,8 +48,8 @@ void SharedPersistentObjectCacherObjectDispatch<I>::init() {
   ldout(cct, 20) << "parent image: setup SRO cache client = " << dendl;
 
   std::string controller_path = "/tmp/rbd_shared_readonly_cache_demo";
-  m_cache_client = new rbd::cache::CacheClient(io_service, controller_path.c_str(),
-    ([&](std::string s){client_handle_request(s);}));
+  m_cache_client = new rbd::cache::CacheClient(controller_path.c_str(),
+    ([&](std::string s){client_handle_request(s);}), m_image_ctx->cct);
 
   int ret = m_cache_client->connect();
   if (ret < 0) {
@@ -83,9 +84,12 @@ bool SharedPersistentObjectCacherObjectDispatch<I>::read(
   ldout(cct, 20) << "object_no=" << object_no << " " << object_off << "~"
                  << object_len << dendl;
 
+  //std::cout<<"read: --> lookup" << std::endl;
+
   on_dispatched = util::create_async_context_callback(*m_image_ctx,
                                                       on_dispatched);
   auto ctx = new FunctionContext([this, oid, object_off, object_len, read_data, dispatch_result, on_dispatched](bool cache) {
+    //std::cout<<"read: --> lookup callback" << std::endl;
     handle_read_cache(cache, oid, object_off, object_len, read_data, dispatch_result, on_dispatched);
   });
 
@@ -109,6 +113,7 @@ int SharedPersistentObjectCacherObjectDispatch<I>::handle_read_cache(
   // try to read from parent image
   if (cache) {
     int r = m_object_store->read_object(oid, read_data, object_off, object_len, on_dispatched);
+    //int r = object_len;
     if (r != 0) {
       *dispatch_result = io::DISPATCH_RESULT_COMPLETE;
       //TODO(): complete in syncfile
@@ -123,7 +128,6 @@ int SharedPersistentObjectCacherObjectDispatch<I>::handle_read_cache(
     return false;
   }
 }
-
 template <typename I>
 void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::string msg) {
   auto cct = m_image_ctx->cct;
@@ -133,7 +137,7 @@ void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::s
 
   switch (io_ctx->type) {
     case rbd::cache::RBDSC_REGISTER_REPLY: {
-      // open cache handler for volume        
+      // open cache handler for volume
       ldout(cct, 20) << "SRO cache client open cache handler" << dendl;
       m_object_store = new SharedPersistentObjectCacher<I>(m_image_ctx, m_image_ctx->shared_cache_path);
 
@@ -153,7 +157,7 @@ void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::s
     }
     default: ldout(cct, 20) << "nothing" << io_ctx->type <<dendl;
       break;
-    
+
   }
 }
 
