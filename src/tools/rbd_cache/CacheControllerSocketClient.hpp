@@ -4,6 +4,7 @@
 #ifndef CACHE_CONTROLLER_SOCKET_CLIENT_H
 #define CACHE_CONTROLLER_SOCKET_CLIENT_H
 
+#include <atomic>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio/error.hpp>
@@ -26,6 +27,7 @@ public:
       m_dm_socket(m_io_service),
       m_client_process_msg(processmsg),
       m_ep(stream_protocol::endpoint(file)),
+      m_session_work(false),
       cct(ceph_ctx)
   {
      // TODO wrapper io_service
@@ -36,12 +38,33 @@ public:
 
   void run(){
   } 
+  
+  bool is_session_work() { 
+    return m_session_work.load() == true;
+  }
+
+  // just when error occur, call this method.
+  void close() {
+    m_session_work.store(false);
+    boost::system::error_code close_ec;
+    m_dm_socket.close(close_ec);
+    if(close_ec) {
+       std::cout << "close: " << close_ec.message() << std::endl;
+    }
+    std::cout << "session don't work, later all request will be dispatched to rados layer" << std::endl;
+  }
 
   int connect() {
     boost::system::error_code ec;
     m_dm_socket.connect(m_ep, ec);
     if(ec) {
-      //ldout(cct, 20) << "connect: " << ec.message() << dendl;
+      if(ec == boost::asio::error::connection_refused) {
+        std::cout << ec.message() << " : maybe rbd-cache Controller don't startup. " 
+                  << "Now data will be read from ceph cluster " << std::endl;
+      } else { 
+        std::cout << "connect: " << ec.message() << std::endl;
+      }
+
       if(m_dm_socket.is_open()) {
         // Set to indicate what error occurred, if any. 
         // Note that, even if the function indicates an error, 
@@ -49,7 +72,7 @@ public:
         boost::system::error_code close_ec;
         m_dm_socket.close(close_ec);
         if(close_ec) {
-          //ldout(cct, 20) << "close: " << close_ec.message() << dendl;
+          std::cout << "close: " << close_ec.message() << std::endl;
         }
       }
       return -1; 
@@ -57,7 +80,6 @@ public:
     
     std::cout<<"connect success"<<std::endl;
 
-    connected = true;
     return 0;
   }
 
@@ -76,13 +98,13 @@ public:
 
     ret = boost::asio::write(m_dm_socket, boost::asio::buffer((char*)message, message->size()), ec);
     if(ec) {
-      //ldcout << "write fails : " << ec.message() << dendl;
-      assert(0);
+      std::cout << "write fails : " << ec.message() << std::endl;
+      return -1;
     }
 
     if(ret != message->size()) {
-      //ldcout << "write fails : ret != send_bytes "<< dendl;
-      assert(0);
+      std::cout << "write fails : ret != send_bytes "<< std::endl;
+      return -1;
     }    
 
     // hard code TODO
@@ -92,22 +114,26 @@ public:
       std::cout<< "recv eof"<<std::endl;
       return -1;
     }
+
     if(ec) {
-      //ldcout << "write fails : " << ec.message() << dendl;
-      assert(0);
+      std::cout << "write fails : " << ec.message() << std::endl;
+      return -1;
     }
 
     if(ret != 544) {
-      //ldcout << "write fails : ret != receive bytes " << dendl;
-      assert(0);
+      std::cout << "write fails : ret != receive bytes " << std::endl;
+      return -1;
     }
 
     m_client_process_msg(std::string(receive_buffer, ret));
     
     delete[] receive_buffer;
-    // delete message;
+    delete message;
     
     std::cout << "register volume success" << std::endl;
+
+    // TODO 
+    m_session_work.store(true);
 
     return 0;
   }
@@ -129,11 +155,13 @@ public:
           delete message;
           if(err) {
             std::cout<< "lookup_object: async_write fails." << err.message() << std::endl;
+            close();
             on_finish->complete(false);
             return;
           }
           if(cb != 544) {
             std::cout<< "lookup_object: async_write fails. in-complete request" <<std::endl;
+            close();
             on_finish->complete(false);
             return;
           }
@@ -149,15 +177,18 @@ public:
         [this, on_finish](const boost::system::error_code& err, size_t cb) {
           if(err == boost::asio::error::eof) {
             std::cout<<"get_result: ack is EOF." << std::endl;
+            close();
             on_finish->complete(false);
             return;
           }
           if(err) {
             std::cout<< "get_result: async_read fails:" << err.message() << std::endl;
+            close();
             on_finish->complete(false); // TODO replace this assert with some metohds.
             return;
           }
           if (cb != 544) {
+            close();
             std::cout << "get_result: in-complete ack." << std::endl;
 	    on_finish->complete(false); // TODO: replace this assert with some methods.
           }
@@ -194,14 +225,16 @@ private:
   ClientProcessMsg m_client_process_msg;
   stream_protocol::endpoint m_ep;
   char m_recv_buffer[1024];
-  int block_size_ = 1024;
+  int m_block_size = 1024;
 
   std::condition_variable cv;
   std::mutex m;
   
+  // atomic modfiy for this variable.
+  // thread 1 : asio callback thread modify it. 
+  // thread 2 : librbd read it.
+  std::atomic<bool> m_session_work;
   CephContext* cct;
-public:
-  bool connected = false;
 };
 
 } // namespace cache

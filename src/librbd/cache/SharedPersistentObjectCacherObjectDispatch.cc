@@ -45,7 +45,7 @@ void SharedPersistentObjectCacherObjectDispatch<I>::init() {
     return;
   }
 
-  ldout(cct, 20) << "parent image: setup SRO cache client = " << dendl;
+  ldout(cct, 5) << "parent image: setup SRO cache client = " << dendl;
 
   std::string controller_path = "/tmp/rbd_shared_readonly_cache_demo";
   m_cache_client = new rbd::cache::CacheClient(controller_path.c_str(),
@@ -79,21 +79,29 @@ bool SharedPersistentObjectCacherObjectDispatch<I>::read(
     io::ExtentMap* extent_map, int* object_dispatch_flags,
     io::DispatchResult* dispatch_result, Context** on_finish,
     Context* on_dispatched) {
+
   // IO chained in reverse order
+
+  // Now, policy is : when session have any error, later all read will dispatched to  rados layer.
+  if(!m_cache_client->is_session_work()) { 
+    *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
+    on_dispatched->complete(0);
+    return true;
+    // TODO : domain socket have error, all read operation will dispatched to rados layer.
+  }  
+
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "object_no=" << object_no << " " << object_off << "~"
                  << object_len << dendl;
 
-  //std::cout<<"read: --> lookup" << std::endl;
 
   on_dispatched = util::create_async_context_callback(*m_image_ctx,
                                                       on_dispatched);
   auto ctx = new FunctionContext([this, oid, object_off, object_len, read_data, dispatch_result, on_dispatched](bool cache) {
-    //std::cout<<"read: --> lookup callback" << std::endl;
     handle_read_cache(cache, oid, object_off, object_len, read_data, dispatch_result, on_dispatched);
   });
 
-  if (m_cache_client && m_cache_client->connected && m_object_store) {
+  if (m_cache_client && m_cache_client->is_session_work() && m_object_store) {
     m_cache_client->lookup_object(m_image_ctx->data_ctx.get_pool_name(),
       m_image_ctx->id, oid, ctx);
   }
