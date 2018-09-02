@@ -49,6 +49,10 @@ class ObjectCacheStore
 
     int promote_object(librados::IoCtx*, std::string object_name,
                        librados::bufferlist* read_buf,
+                       uint64_t length, Context* on_finish);
+
+    int promote_object(librados::IoCtx*, std::string object_name,
+                       librados::bufferlist* read_buf,
                        uint64_t length);
 
     CephContext *m_cct;

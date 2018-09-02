@@ -98,15 +98,20 @@ void CacheController::handle_request(uint64_t session_id, std::string msg){
       } else {
         io_ctx->type = RBDSC_READ_REPLY;
       }
-      if (io_ctx->type != RBDSC_READ_REPLY) {
-        assert(0);
-      }
+
       m_cache_server->send(session_id, std::string((char*)io_ctx, msg.size()));
 
       break;
     }
-    std::cout<<"can't recongize request"<<std::endl;
-    assert(0); // TODO replace it.
+    std::cout << "can't recongize request" << std::endl;
+
+    // TODO
+    // How to handing not-recongize request received by current session ?
+    // i think that this session have fatal problems, and can't normally transfer data.
+    // My ideal is : 
+    // controller side: once detect not-recongizing message, actively shutdown this session 
+    // librbd side: detect socket shutdown, then dispatch all request to rados layer. 
+    assert(0); // TODO : replace it.
   }
 }
 
