@@ -9,7 +9,7 @@
 #define dout_prefix *_dout << "rbd::cache::ObjectCacheStore: " << this << " " \
                            << __func__ << ": "
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 ObjectCacheStore::ObjectCacheStore(CephContext *cct, ContextWQ* work_queue)
@@ -169,4 +169,4 @@ int ObjectCacheStore::evict_objects() {
 }
 
 } // namespace cache
-} // namespace rbd
+} // namespace ceph

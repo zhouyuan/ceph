@@ -1,5 +1,8 @@
-#ifndef RBD_CACHE_SIMPLE_POLICY_HPP
-#define RBD_CACHE_SIMPLE_POLICY_HPP
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab
+
+#ifndef CEPH_CACHE_SIMPLE_POLICY_HPP
+#define CEPH_CACHE_SIMPLE_POLICY_HPP
 
 #include "Policy.hpp"
 #include "include/lru.h"
@@ -10,7 +13,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 
@@ -156,5 +159,5 @@ private:
 };
 
 } // namespace cache
-} // namespace rbd
+} // namespace ceph
 #endif

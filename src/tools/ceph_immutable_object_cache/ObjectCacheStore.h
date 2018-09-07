@@ -1,8 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#ifndef OBJECT_CACHE_STORE_H
-#define OBJECT_CACHE_STORE_H
+#ifndef CEPH_CACHE_OBJECT_CACHE_STORE_H
+#define CEPH_CACHE_OBJECT_CACHE_STORE_H
 
 #include "common/debug.h"
 #include "common/errno.h"
@@ -19,7 +19,7 @@
 using librados::Rados;
 using librados::IoCtx;
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 typedef shared_ptr<librados::Rados> RadosRef;
@@ -65,6 +65,6 @@ class ObjectCacheStore
     bool m_evict_go = false;
 };
 
-} // namespace rbd
+} // namespace ceph
 } // namespace cache
 #endif

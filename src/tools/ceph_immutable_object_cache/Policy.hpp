@@ -1,10 +1,13 @@
-#ifndef RBD_CACHE_POLICY_HPP
-#define RBD_CACHE_POLICY_HPP
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab
+
+#ifndef CEPH_CACHE_POLICY_HPP
+#define CEPH_CACHE_POLICY_HPP
 
 #include <list>
 #include <string>
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 enum CACHESTATUS {
@@ -26,5 +29,5 @@ public:
 };
 
 } // namespace cache
-} // namespace rbd
+} // namespace ceph
 #endif
