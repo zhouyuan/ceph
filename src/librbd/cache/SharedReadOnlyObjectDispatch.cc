@@ -84,23 +84,15 @@ bool SharedReadOnlyObjectDispatch<I>::read(
   ldout(cct, 20) << "object_no=" << object_no << " " << object_off << "~"
                  << object_len << dendl;
 
-  // if any session fails, later reads will go to rados
-  if(!m_cache_client->is_session_work()) {
-    *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
-    on_dispatched->complete(0);
-    return true;
-    // TODO(): fix domain socket error
-  }
-
-  auto ctx = new FunctionContext([this, oid, object_off, object_len,
+  auto lookup_ctx = new FunctionContext([this, oid, object_off, object_len,
     read_data, dispatch_result, on_dispatched](bool cache) {
     handle_read_cache(cache, oid, object_off, object_len,
                       read_data, dispatch_result, on_dispatched);
   });
 
-  if (m_cache_client && m_cache_client->is_session_work() && m_object_store) {
+  if (m_cache_client && m_object_store) {
     m_cache_client->lookup_object(m_image_ctx->data_ctx.get_pool_name(),
-      m_image_ctx->id, oid, ctx);
+      m_image_ctx->id, oid, lookup_ctx);
   }
   return true;
 }

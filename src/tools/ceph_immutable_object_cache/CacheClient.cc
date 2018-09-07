@@ -130,6 +130,12 @@ namespace cache {
 
   // if occur any error, we just return false. Then read from rados.
   int CacheClient::lookup_object(std::string pool_name, std::string vol_name, std::string object_id, Context* on_finish) {
+    // if any session fails, direct the read to RADOS
+    if (!m_session_work) {
+      on_finish->complete(false);
+      return 0;
+    }
+
     rbdsc_req_type_t *message = new rbdsc_req_type_t();
     message->type = RBDSC_READ;
     memcpy(message->pool_name, pool_name.c_str(), pool_name.size());
