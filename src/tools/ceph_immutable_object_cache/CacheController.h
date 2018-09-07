@@ -16,13 +16,11 @@
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 
-#include "CacheControllerSocket.hpp"
+#include "CacheServer.h"
 #include "ObjectCacheStore.h"
 
 
-using boost::asio::local::stream_protocol;
-
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 class CacheController {
@@ -48,7 +46,7 @@ class CacheController {
   ContextWQ* pcache_op_work_queue;
 };
 
-} // namespace rbd
+} // namespace ceph
 } // namespace cache
 
 #endif

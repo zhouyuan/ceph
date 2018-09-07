@@ -4,7 +4,7 @@
 #include <list>
 #include <string>
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 enum CACHESTATUS {
@@ -26,5 +26,5 @@ public:
 };
 
 } // namespace cache
-} // namespace rbd
+} // namespace ceph
 #endif

@@ -19,7 +19,7 @@
 using librados::Rados;
 using librados::IoCtx;
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 typedef shared_ptr<librados::Rados> RadosRef;
@@ -65,6 +65,6 @@ class ObjectCacheStore
     bool m_evict_go = false;
 };
 
-} // namespace rbd
+} // namespace ceph
 } // namespace cache
 #endif

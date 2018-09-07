@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 
@@ -156,5 +156,5 @@ private:
 };
 
 } // namespace cache
-} // namespace rbd
+} // namespace ceph
 #endif

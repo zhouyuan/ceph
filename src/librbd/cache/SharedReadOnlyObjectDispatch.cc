@@ -1,7 +1,7 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#include "librbd/cache/SharedPersistentObjectCacherObjectDispatch.h"
+#include "librbd/cache/SharedReadOnlyObjectDispatch.h"
 #include "common/WorkQueue.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Journal.h"
@@ -16,26 +16,26 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::cache::SharedPersistentObjectCacherObjectDispatch: " \
+#define dout_prefix *_dout << "librbd::cache::SharedReadOnlyObjectDispatch: " \
                            << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace cache {
 
 template <typename I>
-SharedPersistentObjectCacherObjectDispatch<I>::SharedPersistentObjectCacherObjectDispatch(
+SharedReadOnlyObjectDispatch<I>::SharedReadOnlyObjectDispatch(
     I* image_ctx) : m_image_ctx(image_ctx) {
 }
 
 template <typename I>
-SharedPersistentObjectCacherObjectDispatch<I>::~SharedPersistentObjectCacherObjectDispatch() {
+SharedReadOnlyObjectDispatch<I>::~SharedReadOnlyObjectDispatch() {
     delete m_object_store;
     delete m_cache_client;
 }
 
 // TODO if connect fails, init will return error to high layer.
 template <typename I>
-void SharedPersistentObjectCacherObjectDispatch<I>::init() {
+void SharedReadOnlyObjectDispatch<I>::init() {
   auto cct = m_image_ctx->cct;
   ldout(cct, 5) << dendl;
 
@@ -48,7 +48,7 @@ void SharedPersistentObjectCacherObjectDispatch<I>::init() {
   ldout(cct, 5) << "parent image: setup SRO cache client = " << dendl;
 
   std::string controller_path = ((CephContext*)cct)->_conf.get_val<std::string>("rbd_shared_cache_sock");
-  m_cache_client = new rbd::cache::CacheClient(controller_path.c_str(),
+  m_cache_client = new ceph::cache::CacheClient(controller_path.c_str(),
     ([&](std::string s){client_handle_request(s);}), m_image_ctx->cct);
 
   int ret = m_cache_client->connect();
@@ -72,7 +72,7 @@ void SharedPersistentObjectCacherObjectDispatch<I>::init() {
 }
 
 template <typename I>
-bool SharedPersistentObjectCacherObjectDispatch<I>::read(
+bool SharedReadOnlyObjectDispatch<I>::read(
     const std::string &oid, uint64_t object_no, uint64_t object_off,
     uint64_t object_len, librados::snap_t snap_id, int op_flags,
     const ZTracer::Trace &parent_trace, ceph::bufferlist* read_data,
@@ -109,7 +109,7 @@ bool SharedPersistentObjectCacherObjectDispatch<I>::read(
 }
 
 template <typename I>
-int SharedPersistentObjectCacherObjectDispatch<I>::handle_read_cache(
+int SharedReadOnlyObjectDispatch<I>::handle_read_cache(
     bool cache,
     const std::string &oid, uint64_t object_off, uint64_t object_len,
     ceph::bufferlist* read_data, io::DispatchResult* dispatch_result,
@@ -137,27 +137,27 @@ int SharedPersistentObjectCacherObjectDispatch<I>::handle_read_cache(
   }
 }
 template <typename I>
-void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::string msg) {
+void SharedReadOnlyObjectDispatch<I>::client_handle_request(std::string msg) {
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
-  rbd::cache::rbdsc_req_type_t *io_ctx = (rbd::cache::rbdsc_req_type_t*)(msg.c_str());
+  ceph::cache::rbdsc_req_type_t *io_ctx = (ceph::cache::rbdsc_req_type_t*)(msg.c_str());
 
   switch (io_ctx->type) {
-    case rbd::cache::RBDSC_REGISTER_REPLY: {
+    case ceph::cache::RBDSC_REGISTER_REPLY: {
       // open cache handler for volume
       ldout(cct, 20) << "SRO cache client open cache handler" << dendl;
       m_object_store = new SharedPersistentObjectCacher<I>(m_image_ctx, m_image_ctx->shared_cache_path);
 
       break;
     }
-    case rbd::cache::RBDSC_READ_REPLY: {
+    case ceph::cache::RBDSC_READ_REPLY: {
       ldout(cct, 20) << "SRO cache client start to read cache" << dendl;
       //TODO(): should call read here
 
       break;
     }
-    case rbd::cache::RBDSC_READ_RADOS: {
+    case ceph::cache::RBDSC_READ_RADOS: {
       ldout(cct, 20) << "SRO cache client start to read rados" << dendl;
       //TODO(): should call read here
 
@@ -172,4 +172,4 @@ void SharedPersistentObjectCacherObjectDispatch<I>::client_handle_request(std::s
 } // namespace cache
 } // namespace librbd
 
-template class librbd::cache::SharedPersistentObjectCacherObjectDispatch<librbd::ImageCtx>;
+template class librbd::cache::SharedReadOnlyObjectDispatch<librbd::ImageCtx>;

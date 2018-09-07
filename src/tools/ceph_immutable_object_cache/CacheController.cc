@@ -9,7 +9,7 @@
 #define dout_prefix *_dout << "rbd::cache::CacheController: " << this << " " \
                            << __func__ << ": "
 
-namespace rbd {
+namespace ceph {
 namespace cache {
 
 class ThreadPoolSingleton : public ThreadPool {
@@ -50,7 +50,7 @@ int CacheController::init() {
   m_object_cache_store = new ObjectCacheStore(m_cct, pcache_op_work_queue);
   int r = m_object_cache_store->init(false);
   if (r < 0) {
-    //derr << "init error\n" << dendl;
+    lderr(m_cct) << "init error\n" << dendl;
   }
   return r;
 }
@@ -72,7 +72,7 @@ void CacheController::run() {
       ([&](uint64_t p, std::string s){handle_request(p, s);}), m_cct);
     m_cache_server->run();
   } catch (std::exception& e) {
-    std::cerr << "Exception: " << e.what() << "\n";
+    lderr(m_cct) << "Exception: " << e.what() << dendl;
   }
 }
 
@@ -105,12 +105,12 @@ void CacheController::handle_request(uint64_t session_id, std::string msg){
 
       break;
     }
-    std::cout<<"can't recongize request"<<std::endl;
+    ldout(m_cct, 5) << "can't recongize request" << dendl;
     assert(0); // TODO replace it.
   }
 }
 
-} // namespace rbd
+} // namespace ceph
 } // namespace cache
 
 
