@@ -38,11 +38,17 @@ namespace immutable_obj_cache {
   // just when error occur, call this method.
   void CacheClient::close() {
     m_session_work.store(false);
-    boost::system::error_code close_ec;
-    m_dm_socket.close(close_ec);
-    if(close_ec) {
-       ldout(cct, 20) << "close: " << close_ec.message() << dendl;
+    if(m_dm_socket.is_open()) {
+      boost::system::error_code close_ec;
+      m_dm_socket.close(close_ec);
+      if(close_ec) {
+        // Set to indicate what error occurred, if any.
+        // Note that, even if the function indicates an error,
+        // the underlying descriptor is closed.
+        ldout(cct, 20) << "close: " << close_ec.message() << dendl;
+      }
     }
+
     ldout(cct, 20) << "session don't work, later all request will be dispatched to rados layer" << dendl;
   }
 
@@ -56,17 +62,7 @@ namespace immutable_obj_cache {
       } else {
         ldout(cct, 20) << "connect: " << ec.message() << dendl;
       }
-
-      if(m_dm_socket.is_open()) {
-        // Set to indicate what error occurred, if any.
-        // Note that, even if the function indicates an error,
-        // the underlying descriptor is closed.
-        boost::system::error_code close_ec;
-        m_dm_socket.close(close_ec);
-        if(close_ec) {
-          ldout(cct, 20) << "close: " << close_ec.message() << dendl;
-        }
-      }
+      close();
       return -1;
     }
 
@@ -91,28 +87,34 @@ namespace immutable_obj_cache {
     ret = boost::asio::write(m_dm_socket, boost::asio::buffer((char*)message, message->size()), ec);
     if(ec) {
       ldout(cct, 20) << "write fails : " << ec.message() << dendl;
+      close();
       return -1;
     }
 
     if(ret != message->size()) {
       ldout(cct, 20) << "write fails : ret != send_bytes " << dendl;
+      close();
       return -1;
     }
 
     // hard code TODO
     ret = boost::asio::read(m_dm_socket, boost::asio::buffer(m_recv_buffer, RBDSC_MSG_LEN), ec);
     if(ec == boost::asio::error::eof) {
+      // when Controller crush, this error will occur. 
       ldout(cct, 20) << "recv eof" << dendl;
+      close();
       return -1;
     }
 
     if(ec) {
-      ldout(cct, 20) << "write fails : " << ec.message() << dendl;
+      ldout(cct, 20) << "Read fails : " << ec.message() << dendl;
+      close();
       return -1;
     }
 
     if(ret != RBDSC_MSG_LEN) {
-      ldout(cct, 20) << "write fails : ret != receive bytes " << dendl;
+      ldout(cct, 20) << "Read fails : ret != receive bytes " << dendl;
+      close();
       return -1;
     }
 
@@ -165,6 +167,8 @@ namespace immutable_obj_cache {
     boost::asio::async_read(m_dm_socket, boost::asio::buffer(m_recv_buffer, RBDSC_MSG_LEN),
                             boost::asio::transfer_exactly(RBDSC_MSG_LEN),
         [this, on_finish](const boost::system::error_code& err, size_t cb) {
+          // TODO This error is controllable, but how to handle it ?
+          // current is simple, just shutdown this session. 
           if(err == boost::asio::error::eof) {
             ldout(cct, 20) << "get_result: ack is EOF." << dendl;
             close();
@@ -181,6 +185,7 @@ namespace immutable_obj_cache {
             close();
             ldout(cct, 20) << "get_result: in-complete ack." << dendl;
 	    on_finish->complete(false); // TODO: replace this assert with some methods.
+            return;
           }
 
 	  rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(m_recv_buffer);
