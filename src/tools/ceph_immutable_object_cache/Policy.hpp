@@ -11,9 +11,11 @@ namespace ceph {
 namespace immutable_obj_cache {
 
 enum CACHESTATUS {
-  OBJ_CACHE_NONE = 0,
-  OBJ_CACHE_PROMOTING,
-  OBJ_CACHE_PROMOTED,
+  OBJ_CACHE_NONE = 0,  // obj missing, but cache still have free space.
+  OBJ_CACHE_PROMOTING, // obj hit, but in promoting.
+  OBJ_CACHE_PROMOTED,  // obj hit. 
+  OBJ_CACHE_ERROR,     // for any other situations, object status will be marked as error.
+                       // for example, miss and don't have free space.
 };
 
 

@@ -24,18 +24,23 @@ public:
       m_cache_map_lock("rbd::cache::SimplePolicy::m_cache_map_lock"),
       m_free_list_lock("rbd::cache::SimplePolicy::m_free_list_lock")
   {
-
     for(uint64_t i = 0; i < m_entry_count; i++) {
       m_free_list.push_back(new Entry());
     }
-
   }
 
+  // entry include free entry, promoting entry and promoted entry.
   ~SimplePolicy() {
-    for(uint64_t i = 0; i < m_entry_count; i++) {
+    // release free entry  
+    while(!m_free_list.empty()) {
       Entry* entry = reinterpret_cast<Entry*>(m_free_list.front());
       delete entry;
       m_free_list.pop_front();
+    }
+    // release promoting and promoted entry.
+    for(auto it = m_cache_map.begin(); it != m_cache_map.end(); ++it) {
+       Entry* entry = reinterpret_cast<Entry*>(it->second);
+       delete entry;
     }
   }
 
@@ -46,6 +51,13 @@ public:
 
     auto entry_it = m_cache_map.find(cache_file_name);
     if(entry_it == m_cache_map.end()) {
+      // the following two cases will cause that cache don't have free space.
+      // 1: evict thread don't startup. <--current situation
+      // 2: due to race condition, evict thread don't timely kick off the oldest entry at some times points. 
+      if(m_free_list.size() == 0) { 
+        // missing and don't have free space
+        return OBJ_CACHE_ERROR; 
+      }
       Mutex::Locker locker(m_free_list_lock);
       Entry* entry = reinterpret_cast<Entry*>(m_free_list.front());
       assert(entry != nullptr);
@@ -54,6 +66,7 @@ public:
 
       m_cache_map[cache_file_name] = entry;
 
+      // miss and have free space
       return OBJ_CACHE_NONE;
     }
 
@@ -64,6 +77,7 @@ public:
       m_promoted_lru.lru_touch(entry);
     }
 
+    // hit, namely promoting or promoted.
     return entry->status;
   }
 
@@ -73,30 +87,18 @@ public:
     return 1;
   }
 
-  // TODO(): simplify the logic
+  // TODO(): simplify the logic...yuan.
+  // when calling this method, must ensure that file_name is in m_cache_map. 
+  // only one case: promoting --> promoted.
   void update_status(std::string file_name, CACHESTATUS new_status) {
     RWLock::WLocker locker(m_cache_map_lock);
 
-    Entry* entry;
     auto entry_it = m_cache_map.find(file_name);
+    assert(new_status == OBJ_CACHE_PROMOTED && entry_it != m_cache_map.end() 
+           && entry_it->second->status == OBJ_CACHE_PROMOTING);
 
-    // just check.
-    if(new_status == OBJ_CACHE_PROMOTING) {
-      assert(entry_it == m_cache_map.end());
-    }
-
-    assert(entry_it != m_cache_map.end());
-
-    entry = entry_it->second;
-
-    // promoting is done, so update it.
-    if(entry->status == OBJ_CACHE_PROMOTING && new_status== OBJ_CACHE_PROMOTED) {
-      m_promoted_lru.lru_insert_top(entry);
-      entry->status = new_status;
-      return;
-    }
-
-    assert(0);
+    entry_it->second->status = new_status;
+    m_promoted_lru.lru_insert_top(entry_it->second);
   }
 
   // get entry status
@@ -110,6 +112,7 @@ public:
     return entry_it->second->status;
   }
 
+  // according to watermark, evcit thread kick off the oldest entry.
   void get_evict_list(std::list<std::string>* obj_list) {
     RWLock::WLocker locker(m_cache_map_lock);
     // check free ratio, pop entries from LRU
@@ -131,7 +134,7 @@ public:
         Mutex::Locker locker(m_free_list_lock);
         m_free_list.push_back(entry);
       }
-   }
+    }
   }
 
 private:

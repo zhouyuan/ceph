@@ -116,8 +116,12 @@ int ObjectCacheStore::lookup_object(std::string pool_name, std::string object_na
     case OBJ_CACHE_PROMOTED:
       return 0;
     case OBJ_CACHE_PROMOTING:
-    default:
       return -1;
+    case OBJ_CACHE_ERROR:
+      return -1;
+    default:
+      lderr(m_cct) << "unrecognized object cache status." << dendl;
+      assert(0); 
   }
 }
 
