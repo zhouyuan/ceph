@@ -25,6 +25,16 @@ stream_protocol::socket& CacheSession::socket() {
   return m_dm_socket;
 }
 
+void CacheSession::close() {
+   if(m_dm_socket.is_open()) {
+     boost::system::error_code close_ec;
+     m_dm_socket.close(close_ec);
+     if(close_ec) {
+        ldout(cct, 20) << "close: " << close_ec.message() << dendl;
+     }
+   }
+}
+
 void CacheSession::start() {
   if(true) {
     serial_handing_request();
@@ -61,12 +71,21 @@ void CacheSession::handle_read(const boost::system::error_code& error, size_t by
   // so, server side need to end handing_request
   if(error == boost::asio::error::eof) {
     ldout(cct, 20) << "session: async_read : " << error.message() << dendl;
+    close();
+    return;
+  }
+
+  // when repeatedly connect to server side, always generate this error.
+  // how to handle this error ?
+  if(error == boost::asio::error::connection_reset) { 
+    ldout(cct, 20) << "session: async_read : " << error.message() << dendl;
+    close();
     return;
   }
 
   if(error) {
     ldout(cct, 20) << "session: async_read fails: " << error.message() << dendl;
-    assert(0);
+    return;
   }
 
   if(bytes_transferred != RBDSC_MSG_LEN) {
