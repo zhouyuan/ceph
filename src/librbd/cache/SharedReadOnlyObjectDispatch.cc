@@ -25,13 +25,19 @@ namespace cache {
 
 template <typename I>
 SharedReadOnlyObjectDispatch<I>::SharedReadOnlyObjectDispatch(
-    I* image_ctx) : m_image_ctx(image_ctx) {
+    I* image_ctx) : m_image_ctx(image_ctx), m_object_store(nullptr), m_cache_client(nullptr) {
 }
 
 template <typename I>
 SharedReadOnlyObjectDispatch<I>::~SharedReadOnlyObjectDispatch() {
-    delete m_object_store;
-    delete m_cache_client;
+    // case: m_image_ctx->parent != nullptr
+    if(m_object_store != nullptr) {
+      delete m_object_store;
+    }
+    // case : register fails 
+    if(m_cache_client != nullptr) {
+      delete m_cache_client;
+    }
 }
 
 // TODO if connect fails, init will return error to high layer.
@@ -115,6 +121,7 @@ int SharedReadOnlyObjectDispatch<I>::handle_read_cache(
 
   // try to read from parent image
   if (cache) {
+    // TODO...sdh
     int r = m_object_store->read_object(oid, read_data, object_off, object_len, on_dispatched);
     //int r = object_len;
     if (r != 0) {

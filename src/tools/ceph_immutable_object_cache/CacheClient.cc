@@ -21,11 +21,15 @@ namespace immutable_obj_cache {
       m_client_process_msg(processmsg),
       m_ep(stream_protocol::endpoint(file)),
       m_session_work(false),
+      m_callback_thread([this](){m_io_service.run();}),
       cct(ceph_ctx)
   {
      // TODO wrapper io_service
-     std::thread thd([this](){m_io_service.run();});
-     thd.detach();
+  }
+
+  CacheClient::~CacheClient() {
+    m_io_service.stop();
+    m_callback_thread.join();
   }
 
   void CacheClient::run(){

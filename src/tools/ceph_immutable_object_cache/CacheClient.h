@@ -23,6 +23,7 @@ namespace immutable_obj_cache {
 class CacheClient {
 public:
   CacheClient(const std::string& file, ClientProcessMsg processmsg, CephContext* ceph_ctx);
+  ~CacheClient();
   void run();
   bool is_session_work();
 
@@ -44,6 +45,7 @@ private:
   // atomic modfiy for this variable.
   // thread 1 : asio callback thread modify it.
   // thread 2 : librbd read it.
+  std::thread m_callback_thread;
   std::atomic<bool> m_session_work;
   CephContext* cct;
 };
