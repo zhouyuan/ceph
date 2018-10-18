@@ -32,7 +32,7 @@ public:
 
   int register_volume(std::string pool_name, std::string vol_name, uint64_t vol_size);
   int lookup_object(std::string pool_name, std::string vol_name, std::string object_id, Context* on_finish);
-  void get_result(Context* on_finish);
+  void get_result(Context* on_finish, std::string oid);
 
 private:
   boost::asio::io_service m_io_service;

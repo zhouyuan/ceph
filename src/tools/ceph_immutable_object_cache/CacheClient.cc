@@ -145,7 +145,7 @@ namespace immutable_obj_cache {
     boost::asio::async_write(m_dm_socket,
                              boost::asio::buffer((char*)message, message->size()),
                              boost::asio::transfer_exactly(RBDSC_MSG_LEN),
-        [this, on_finish, message](const boost::system::error_code& err, size_t cb) {
+        [this, on_finish, message, object_id](const boost::system::error_code& err, size_t cb) {
           delete message;
           if(err) {
             ldout(cct, 20) << "lookup_object: async_write fails." << err.message() << dendl;
@@ -159,35 +159,40 @@ namespace immutable_obj_cache {
             on_finish->complete(false);
             return;
           }
-          get_result(on_finish);
+          get_result(on_finish, object_id);
     });
 
     return 0;
   }
 
-  void CacheClient::get_result(Context* on_finish) {
-    boost::asio::async_read(m_dm_socket, boost::asio::buffer(m_recv_buffer, RBDSC_MSG_LEN),
+  void CacheClient::get_result(Context* on_finish, std::string object_id) {
+    char* data_recv_buffer = new char[RBDSC_MSG_LEN + 1];
+    boost::asio::async_read(m_dm_socket, boost::asio::buffer(data_recv_buffer, RBDSC_MSG_LEN),
                             boost::asio::transfer_exactly(RBDSC_MSG_LEN),
-        [this, on_finish](const boost::system::error_code& err, size_t cb) {
+        [this, on_finish, data_recv_buffer, object_id](const boost::system::error_code& err, size_t cb) {
           if(err == boost::asio::error::eof) {
             ldout(cct, 20) << "get_result: ack is EOF." << dendl;
             close();
+            delete[] data_recv_buffer;
             on_finish->complete(false);
             return;
           }
           if(err) {
             ldout(cct, 20) << "get_result: async_read fails:" << err.message() << dendl;
             close();
+            delete[] data_recv_buffer;
             on_finish->complete(false); // TODO replace this assert with some metohds.
             return;
           }
           if (cb != RBDSC_MSG_LEN) {
-            close();
             ldout(cct, 20) << "get_result: in-complete ack." << dendl;
+            close();
+            delete[] data_recv_buffer;
 	    on_finish->complete(false); // TODO: replace this assert with some methods.
+            return;
           }
 
-	  rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(m_recv_buffer);
+	  rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(data_recv_buffer);
 
           // TODO: re-occur yuan's bug
           if(io_ctx->type == RBDSC_READ) {
@@ -195,13 +200,18 @@ namespace immutable_obj_cache {
             assert(0);
           }
 
+          // message out-of-order.
+          if(io_ctx->vol_name != object_id) {
+            ldout(cct, 20) << "message out-of-order." << dendl;
+            assert(0);
+          }
+
           if (io_ctx->type == RBDSC_READ_REPLY) {
 	    on_finish->complete(true);
-            return;
           } else {
 	    on_finish->complete(false);
-            return;
           }
+          delete [] data_recv_buffer;
     });
   }
 
