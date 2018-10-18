@@ -117,12 +117,19 @@ int SharedReadOnlyObjectDispatch<I>::handle_read_cache(
   // try to read from parent image
   if (cache) {
     int r = m_object_store->read_object(oid, read_data, object_off, object_len, on_dispatched);
-    if (r != 0) {
+    // TODO : compile warning.
+    if (r == object_len) {
       *dispatch_result = io::DISPATCH_RESULT_COMPLETE;
       //TODO(): complete in syncfile
       on_dispatched->complete(r);
       ldout(cct, 20) << "read cache: " << *dispatch_result <<dendl;
       return true;
+    } else {
+      assert(0); // TODO delete it.
+      *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
+      on_dispatched->complete(0);
+      ldout(cct, 20) << "read rados: " << *dispatch_result <<dendl;
+      return false;
     }
   } else {
     *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
