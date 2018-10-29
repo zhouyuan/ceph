@@ -31,11 +31,17 @@ public:
 
   }
 
+  // Entry have two situations: 
+  //  1 : free entry is in m_free_list
+  //  2 : promoting or promoted entry is in m_cache_map. <---- memory leak.                     
   ~SimplePolicy() {
-    for(uint64_t i = 0; i < m_entry_count; i++) {
+    for(auto it = m_free_list.begin(); it != m_free_list.end(); it++) {
       Entry* entry = reinterpret_cast<Entry*>(m_free_list.front());
       delete entry;
-      m_free_list.pop_front();
+    }
+    for(auto it = m_cache_map.begin(); it != m_cache_map.end(); it++) {
+      Entry* entry = reinterpret_cast<Entry*>(it->second);
+      delete entry;
     }
   }
 
@@ -48,8 +54,11 @@ public:
     // simplely promote on first lookup
     if(entry_it == m_cache_map.end()) {
       Mutex::Locker locker(m_free_list_lock);
+      // when miss and don't have free space, can't execute the following codes. 
+      if(m_free_list.size() == 0) {
+        return OBJ_CACHE_NONE;
+      }
       Entry* entry = m_free_list.front();
-      assert(entry != nullptr);
       m_free_list.pop_front();
       entry->status = OBJ_CACHE_PROMOTING;
       entry->cache_file_name = cache_file_name;
@@ -69,29 +78,42 @@ public:
     return entry->status;
   }
 
-  // TODO(): simplify the logic
   void update_status(std::string file_name, CACHESTATUS new_status) {
     RWLock::WLocker locker(m_cache_map_lock);
 
-    Entry* entry;
     auto entry_it = m_cache_map.find(file_name);
 
-    // just check.
-    if(new_status == OBJ_CACHE_PROMOTING) {
-      assert(entry_it == m_cache_map.end());
+    // NONE --> PROMOTING : lookup_object have handled this case.
+    if(entry_it == m_cache_map.end() && new_status == OBJ_CACHE_PROMOTING) {
+      assert(0);
     }
-
-    assert(entry_it != m_cache_map.end());
-
-    entry = entry_it->second;
-
-    // promoting is done, so update it.
-    if(entry->status == OBJ_CACHE_PROMOTING && new_status== OBJ_CACHE_PROMOTED) {
-      m_promoted_lru.lru_insert_top(entry);
-      entry->status = new_status;
+    
+    // async promote fails: promoting --> none 
+    if(entry_it->second->status == OBJ_CACHE_PROMOTING && new_status == OBJ_CACHE_NONE) {
+      entry_it->second->status = OBJ_CACHE_NONE;
+      entry_it->second->cache_file_name = "";
+      m_free_list.push_back(entry_it->second);
+      m_cache_map.erase(entry_it); 
       return;
     }
 
+    // async promote fails or release space: promoted --> none
+    if(entry_it->second->status == OBJ_CACHE_PROMOTED && new_status == OBJ_CACHE_NONE) {
+      entry_it->second->status = OBJ_CACHE_NONE;
+      entry_it->second->cache_file_name = "";
+      m_promoted_lru.lru_remove(entry_it->second);
+      m_free_list.push_back(entry_it->second);
+      m_cache_map.erase(entry_it);
+      return;
+    }
+
+    // promoting --> promoted
+    if(entry_it->second->status == OBJ_CACHE_PROMOTING && new_status== OBJ_CACHE_PROMOTED) {
+      m_promoted_lru.lru_insert_top(entry_it->second);
+      entry_it->second->status = new_status;
+      return;
+    }
+    
     assert(0);
   }
 
@@ -105,6 +127,9 @@ public:
 
     //mark this entry as free
     Entry* entry = entry_it->second;
+    if(entry->status == OBJ_CACHE_PROMOTED) {
+      m_promoted_lru.lru_remove(entry);
+    }
     entry->status = OBJ_CACHE_NONE;
     entry->cache_file_name = "";
     Mutex::Locker free_list_locker(m_free_list_lock);
@@ -126,7 +151,7 @@ public:
   void get_evict_list(std::list<std::string>* obj_list) {
     RWLock::WLocker locker(m_cache_map_lock);
     // check free ratio, pop entries from LRU
-    if (m_free_list.size() / m_entry_count < m_watermark) {
+    if ((float)m_free_list.size() / (float)m_entry_count < m_watermark) {
       int evict_num = 10; //TODO(): make this configurable
       for(int i = 0; i < evict_num; i++) {
         Entry* entry = reinterpret_cast<Entry*>(m_promoted_lru.lru_expire());
@@ -137,7 +162,34 @@ public:
         obj_list->push_back(file_name);
 
       }
-   }
+    }
+  }
+
+  // for unit test
+  uint64_t get_free_entry_num() {
+    return m_free_list.size();
+  } 
+
+  uint64_t get_promoting_entry_num() {
+    uint64_t index = 0;
+    for(auto temp = m_cache_map.begin(); temp != m_cache_map.end(); temp++) {
+      if(temp->second->status == OBJ_CACHE_PROMOTING) {
+        index++;
+      }
+    }
+    return index;
+  }
+ 
+  uint64_t get_promoted_entry_num() {
+    return m_promoted_lru.lru_get_size();
+  }
+
+  std::string get_evict_entry() {
+    Entry* entry = reinterpret_cast<Entry*>(m_promoted_lru.lru_get_next_expire());
+    if(entry == NULL) {
+      return "";
+    }
+    return entry->cache_file_name;
   }
 
 private:
