@@ -1,3 +1,5 @@
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab
 #include <iostream> 
 #include <unistd.h>
 
@@ -7,15 +9,12 @@
 #include "common/Cond.h"
 #include "global/global_init.h"
 #include "common/ceph_argparse.h"
-
 #include "global/global_context.h"
-
 #include "tools/ceph_immutable_object_cache/CacheClient.h"
 #include "tools/ceph_immutable_object_cache/CacheServer.h"
 
 using namespace ceph::immutable_obj_cache;
 
-// sequentialize async_operation
 class WaitEvent {
 public:
   WaitEvent() : m_signaled(false) {
@@ -56,20 +55,15 @@ public:
   std::thread* m_cache_server_thread;
   std::thread* m_cache_client_thread;
   std::string m_local_path;
-  pthread_mutex_t m_mutex;
-  pthread_cond_t m_cond;
-  bool m_cache_client_ready;
-  bool m_cache_server_ready;
   std::atomic<uint64_t> m_send_request_index;
   std::atomic<uint64_t> m_recv_ack_index;
   WaitEvent m_wait_event;
-  unordered_set<uint64_t> m_hit_entry_set;
+  unordered_set<std::string> m_hit_entry_set;
 
   TestCommunication() 
     : m_cache_server(nullptr), m_cache_client(nullptr), m_local_path("/tmp/ceph_test_domain_socket"), 
-      m_cache_server_thread(nullptr), m_cache_client_thread(nullptr), m_cache_server_ready(false),
-      m_send_request_index(0), m_recv_ack_index(0), m_cache_client_ready(false)
-    {}
+      m_cache_server_thread(nullptr), m_cache_client_thread(nullptr), m_send_request_index(0), m_recv_ack_index(0)
+  {}
 
   ~TestCommunication() {}
 
@@ -78,8 +72,8 @@ public:
 
   void SetUp() override {
     std::remove(m_local_path.c_str());
-    m_cache_server = new CacheServer(g_ceph_context, m_local_path, [this](uint64_t xx, std::string yy ){
-        handle_request(xx, yy);
+    m_cache_server = new CacheServer(g_ceph_context, m_local_path, [this](uint64_t session_id, std::string msg ){
+      handle_request(session_id, msg);
     });
     ASSERT_TRUE(m_cache_server != nullptr);
     m_cache_client = new CacheClient(m_local_path, g_ceph_context);
@@ -87,30 +81,25 @@ public:
   }
 
   void TearDown() override {
-    std::cout << "tear down ...." << std::endl;
     stop();
-    if(m_cache_server != nullptr) {
+    if (m_cache_server != nullptr) {
       delete m_cache_server;
     }
-    if(m_cache_client != nullptr) {
+    if (m_cache_client != nullptr) {
       delete m_cache_client;
     }
   }
 
-  int create_communication_session() {
-
+  void create_communication_session() {
     m_cache_server_thread = new std::thread(
       [this] () {
-
         m_cache_server->start_accept();
         m_wait_event.signal();
-        m_cache_server->just_run();
-       
+        m_cache_server->just_run(); 
     });
     m_wait_event.wait();
 
-    // TODO: just for io_service.run() preparation time.
-    sleep(1);
+    sleep(1); 
 
     m_cache_client_thread = new std::thread(
       [this]() {
@@ -118,8 +107,6 @@ public:
         m_wait_event.signal();
     });
     m_wait_event.wait();
-
-    return 1;
   }
 
   void stop() {
@@ -132,9 +119,7 @@ public:
   void handle_request(uint64_t session_id, std::string msg){
     int ret;
     rbdsc_req_type_t *io_ctx = (rbdsc_req_type_t*)(msg.c_str());
-
-   // ASSERT_TRUE(io_ctx->type == RBDSC_REGISTER || io_ctx->type == RBDSC_READ);
-
+    
     switch (io_ctx->type) {
       case RBDSC_REGISTER: {
         io_ctx->type = RBDSC_REGISTER_REPLY;
@@ -142,15 +127,14 @@ public:
         break;
       }
       case RBDSC_READ: {
-         
-        if (ret < 0) {
+        if ( m_hit_entry_set.find(io_ctx->oid) == m_hit_entry_set.end()) { 
           io_ctx->type = RBDSC_READ_RADOS;
         } else {
           io_ctx->type = RBDSC_READ_REPLY;
         }
         m_cache_server->send(session_id, std::string((char*)io_ctx, msg.size()));
         break;
-      }
+      } 
     }
   }
 
@@ -165,63 +149,56 @@ public:
      ASSERT_TRUE(m_cache_client->is_session_work());
    }
 
-   void server_thread_entry() {
-     m_cache_server->run();     
-   }
-  
-   // times: message number
-   // queue_deqth : imitate message queue depth
-   // thinking : imitate handing message time
    void startup_pingpong_testing(uint64_t times, uint64_t queue_depth, int thinking) {
      m_send_request_index.store(0); 
      m_recv_ack_index.store(0);
-     for(uint64_t index = 0; index < times; index++) {
+
+     for (uint64_t index = 0; index < times; index++) {
        auto ctx = new FunctionContext([this, thinking, times](bool req){
-          if(thinking != 0) {
-            usleep(thinking); // handling message 
-          }
-          m_recv_ack_index++;
-          if(m_recv_ack_index == times) {
-            m_wait_event.signal();
-          }
+         if (thinking != 0) {
+           usleep(thinking);
+         }
+         m_recv_ack_index++;
+         if (m_recv_ack_index == times) {
+           m_wait_event.signal();
+         }
        });
 
-       // simple queue depth
-       while(m_send_request_index - m_recv_ack_index > queue_depth) {
+       while (m_send_request_index - m_recv_ack_index > queue_depth) {
          usleep(1);
        }
-    
+
        m_cache_client->lookup_object("test_pool", "test_rbd", "123456", ctx);
        m_send_request_index++;
      }
+
      m_wait_event.wait();
    }
 
-  // sequentialize read and write operation.
-  void startup_message_testing(std::string pool_name, std::string volume_name, std::string object_id) {
-    auto ctx = new FunctionContext([this, pool_name, volume_name, object_id](bool req){
+  bool startup_lookupobject_testing(std::string pool_name, std::string volume_name, std::string object_id) {
+    bool hit;
+    auto ctx = new FunctionContext([this, &hit](bool req){
+       hit = req;
        m_wait_event.signal(); 
     });
-
     m_cache_client->lookup_object(pool_name, volume_name, object_id, ctx);
     m_wait_event.wait();
+    return hit;
   }
 
-  void set_hit_entry_in_fake_lru(uint64_t oid) {
-    if(m_hit_entry_set.find(oid) == m_hit_entry_set.end()) {
+  void set_hit_entry_in_fake_lru (std::string oid) {
+    if (m_hit_entry_set.find(oid) == m_hit_entry_set.end()) {
       m_hit_entry_set.insert(oid);
     } 
   }
 
-  bool lookup_entry_in_fake_lru(uint64_t oid) {
+  bool lookup_entry_in_fake_lru (std::string oid) {
     return m_hit_entry_set.find(oid) != m_hit_entry_set.end();
   }
-
 };
 
-TEST_F(TestCommunication, test_queue_depth) {
+TEST_F(TestCommunication, test_pingpong) {
   create_communication_session();
-
   startup_pingpong_testing(10000, 16, 0);
   ASSERT_TRUE(m_send_request_index == m_recv_ack_index);
   startup_pingpong_testing(10000, 32, 0);
@@ -236,11 +213,26 @@ TEST_F(TestCommunication, test_queue_depth) {
   ASSERT_TRUE(m_send_request_index == m_recv_ack_index);
 }
 
-
-// sequentialize async_operation
-TEST_F(TestCommunication, test_message_content) {
+TEST_F(TestCommunication, test_lookup_object) {
   create_communication_session();
-
+  m_hit_entry_set.clear();    
+  auto generate_oid = [](uint64_t index){
+    std::ostringstream oss;
+    oss << index;
+    return oss.str();
+  };
+  for (uint64_t i = 0; i < 100; i++) {
+    set_hit_entry_in_fake_lru(generate_oid(i));
+    set_hit_entry_in_fake_lru(generate_oid(i + 20));
+    set_hit_entry_in_fake_lru(generate_oid(i + 40));
+    set_hit_entry_in_fake_lru(generate_oid(i + 60));
+    set_hit_entry_in_fake_lru(generate_oid(i + 80));
+  }
+  for (uint64_t i = 0; i < 300; i++) {
+    if (m_hit_entry_set.find(generate_oid(i)) == m_hit_entry_set.end()) {
+      ASSERT_FALSE(startup_lookupobject_testing("test_pool", "testing_volume", generate_oid(i)));
+    } else {
+      ASSERT_TRUE(startup_lookupobject_testing("test_pool", "testing_volume", generate_oid(i)));
+    }
+  }
 }
-
-
