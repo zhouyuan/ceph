@@ -26,5 +26,8 @@ int main(int argc, char **argv)
     std::cerr << "failed to enable lockdep" << std::endl;
     return -r;
   }
+ 
+  testing::InitGoogleTest(&argc, argv);
+
   return RUN_ALL_TESTS();
 }
