@@ -23,7 +23,7 @@ namespace cache {
 
 SyncFile::SyncFile(CephContext *cct, const std::string &name)
   : cct(cct), m_fd(-1) {
-  std::cout << "file path : " << m_name << std::endl;
+  m_name = cct->_conf.get_val<std::string>("rbd_shared_cache_path") + "/ceph_immutable_obj_cache/" + name;      
   ldout(cct, 20) << "file path=" << m_name << dendl;
 }
 
