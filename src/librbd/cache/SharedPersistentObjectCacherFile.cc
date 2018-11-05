@@ -23,7 +23,7 @@ namespace cache {
 
 SyncFile::SyncFile(CephContext *cct, const std::string &name)
   : cct(cct), m_fd(-1) {
-  m_name = cct->_conf.get_val<std::string>("rbd_shared_cache_path") + "/ceph_immutable_obj_cache/" + name;
+  std::cout << "file path : " << m_name << std::endl;
   ldout(cct, 20) << "file path=" << m_name << dendl;
 }
 
@@ -60,21 +60,13 @@ int SyncFile::open_file() {
   return m_fd;
 }
 
-void SyncFile::create() {
-  while (true) 
-  {
-    m_fd = ::open(m_name.c_str(), O_CREAT | O_NOATIME | O_RDWR | O_SYNC,
+int SyncFile::create() {
+  m_fd = ::open(m_name.c_str(), O_CREAT | O_NOATIME | O_RDWR | O_SYNC,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-    if (m_fd == -1) 
-    {
-      int r = -errno;
-      if (r == -EINTR) {
-        continue;
-      }
-      return;
-    }
-    break;
+  if(m_fd == -1) {
+    lderr(cct) << "create fails : " << std::strerror(errno) << dendl;
   }
+  return m_fd;
 }
 
 void SyncFile::read(uint64_t offset, uint64_t length, ceph::bufferlist *bl, Context *on_finish) {

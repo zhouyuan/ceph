@@ -28,7 +28,7 @@ public:
 
   void open(Context *on_finish);
 
-  void create();
+  int create();
   int open_file();
   bool try_open();
   void close(Context *on_finish);
