@@ -37,7 +37,8 @@ set(librbd_internal_srcs
   api/Trash.cc
   cache/ImageWriteback.cc
   cache/ObjectCacherObjectDispatch.cc
-  cache/PassthroughImageCache.cc
+  cache/SharedReadOnlyObjectDispatch.cc
+  cache/SharedPersistentObjectCacher.cc
   deep_copy/ImageCopyRequest.cc
   deep_copy/MetadataCopyRequest.cc
   deep_copy/ObjectCopyRequest.cc
@@ -132,6 +133,8 @@ set(librbd_internal_srcs
   trash/MoveRequest.cc
   watcher/Notifier.cc
   watcher/RewatchRequest.cc
+  ${CMAKE_SOURCE_DIR}/src/tools/immutable_object_cache/CacheClient.cc
+  ${CMAKE_SOURCE_DIR}/src/tools/immutable_object_cache/ObjectCacheFile.cc
   ${CMAKE_SOURCE_DIR}/src/common/ContextCompletion.cc)
 
 add_library(rbd_api STATIC librbd.cc)
