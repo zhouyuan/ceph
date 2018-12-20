@@ -113,5 +113,5 @@ if(WITH_RBD)
   endif()
 endif(WITH_RBD)
 
-add_subdirectory(ceph_immutable_object_cache)
+add_subdirectory(immutable_object_cache)
 add_subdirectory(ceph-dencoder)
