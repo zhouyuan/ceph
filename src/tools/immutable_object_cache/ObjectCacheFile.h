@@ -23,9 +23,6 @@ public:
 
   // TODO use scatter/gather API
 
-  int create();
-  int open_file();
-
   void read(uint64_t offset, uint64_t length, ceph::bufferlist *bl, Context *on_finish);
 
   void write(uint64_t offset, ceph::bufferlist &&bl, bool fdatasync, Context *on_finish);
@@ -35,6 +32,7 @@ public:
   uint64_t get_file_size();
 
 private:
+  ceph::bufferlist m_buffer;
   CephContext *cct;
   std::string m_name;
   int m_fd;
