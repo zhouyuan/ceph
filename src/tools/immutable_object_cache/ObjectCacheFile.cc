@@ -51,20 +51,28 @@ int ObjectCacheFile::write_object_to_file(ceph::bufferlist read_buf, uint64_t ob
   return object_len;
 }
 
-int ObjectCacheFile::read_object_from_file(ceph::bufferlist* read_buf, uint64_t object_off, uint64_t object_len) {
-
-  ldout(cct, 20) << "offset:" << object_off
+int ObjectCacheFile::read_object_from_file(ceph::bufferlist* read_buf,
+                                           uint64_t object_off, uint64_t object_len) {
+ ldout(cct, 20) << "offset:" << object_off
                  << ", length:" << object_len <<  dendl;
 
   // TODO read some addtional bytes.
-  std::string error_str; 
-  int ret = m_buffer.read_file(m_name.c_str(), &error_str); 
+  std::string error_str;
+  int ret = m_buffer.read_file(m_name.c_str(), &error_str);
   if (ret < 0) {
     lderr(cct)<<"read file fail:" << error_str << dendl;
     return -1;
   }
 
-  read_buf->substr_of(m_buffer, object_off, object_len); 
+  if(object_off >= m_buffer.length()) {
+    return 0;
+  }
+
+  if((m_buffer.length() - object_off) < object_len) {
+    object_len = m_buffer.length() - object_off;
+  }
+
+  read_buf->substr_of(m_buffer, object_off, object_len);
 
   return read_buf->length();
 }
