@@ -321,6 +321,7 @@ WRITE_RAW_ENCODER(ceph_osd_op)
 WRITE_RAW_ENCODER(ceph_msg_header)
 WRITE_RAW_ENCODER(ceph_msg_footer)
 WRITE_RAW_ENCODER(ceph_msg_footer_old)
+WRITE_RAW_ENCODER(ObjectCacheMsgHeader)
 WRITE_RAW_ENCODER(ceph_mon_subscribe_item)
 
 WRITE_RAW_ENCODER(ceph_mon_statfs)

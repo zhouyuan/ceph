@@ -943,4 +943,13 @@ struct ceph_mds_snap_realm {
 } __attribute__ ((packed));
 /* followed by my snap list, then prior parent snap list */
 
+struct ObjectCacheMsgHeader {
+    __le64 seq;                         /* sequence id */
+    __le16 type;                        /* msg type */
+    __le16 version;                     /* object cache version */
+    __le64 mid_len;
+    __le32 data_len;
+    __le32 reserved;
+} __attribute__ ((packed));
+
 #endif
