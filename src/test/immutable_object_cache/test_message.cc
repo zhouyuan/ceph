@@ -1,18 +1,5 @@
 #include "gtest/gtest.h"
-#include "include/Context.h"
-#include "include/buffer_fwd.h"
-#include "common/Mutex.h"
-#include "common/Cond.h"
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include "global/global_context.h"
-
-#include "include/buffer.h"
-#include "include/types.h"
-#include "include/encoding.h"
-#include "include/int_types.h"
-
-#include "tools/immutable_object_cache/SocketCommon.h"
+#include "tools/immutable_object_cache/Types.h"
 
 using namespace ceph::immutable_obj_cache;
 
@@ -50,7 +37,6 @@ TEST(test_for_message, test_1)
   ASSERT_EQ(req.m_head_buffer.length(), sizeof(req.m_head));
   ASSERT_EQ(req.m_data_buffer.length(), 0);
 
-  // ==========
 
   ObjectCacheRequest* req_decode;
 
