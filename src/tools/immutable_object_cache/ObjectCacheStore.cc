@@ -37,6 +37,7 @@ ObjectCacheStore::ObjectCacheStore(CephContext *cct)
 
   m_policy = new SimplePolicy(m_cct, m_object_cache_max_size,
                               m_cache_watermark);
+  m_meta_store = new MetaStore(m_cct, m_cache_root_dir);
 }
 
 ObjectCacheStore::~ObjectCacheStore() {

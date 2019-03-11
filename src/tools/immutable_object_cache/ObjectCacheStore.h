@@ -8,6 +8,7 @@
 #include "common/Mutex.h"
 #include "include/rados/librados.hpp"
 
+#include "MetaStore.h"
 #include "SimplePolicy.h"
 
 
@@ -55,6 +56,8 @@ class ObjectCacheStore {
   uint64_t m_object_cache_max_size;
   float m_cache_watermark;
   std::string m_cache_root_dir;
+
+  MetaStore* m_meta_store;
 };
 
 }  // namespace ceph

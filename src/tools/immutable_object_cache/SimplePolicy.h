@@ -37,9 +37,6 @@ class SimplePolicy : public Policy {
   uint64_t get_promoted_entry_num();
   std::string get_evict_entry();
 
- private:
-  cache_status_t alloc_entry(std::string file_name);
-
   class Entry : public LRUObject {
    public:
     cache_status_t status;
@@ -47,6 +44,10 @@ class SimplePolicy : public Policy {
     std::string file_name;
     uint64_t size;
   };
+
+
+ private:
+  cache_status_t alloc_entry(std::string file_name);
 
   CephContext* cct;
   float m_watermark;
