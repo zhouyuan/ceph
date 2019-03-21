@@ -13,13 +13,25 @@
 namespace ceph {
 namespace immutable_obj_cache {
 
-SimplePolicy::SimplePolicy(CephContext *cct, uint64_t cache_size,
-                           float watermark)
-  : cct(cct), m_watermark(watermark), m_max_cache_size(cache_size),
-    m_cache_map_lock("rbd::cache::SimplePolicy::m_cache_map_lock") {
+SimplePolicy::SimplePolicy(CephContext *cct)
+  : cct(cct),
+    m_cache_map_lock("ceph::cache::SimplePolicy::m_cache_map_lock") {
+
   ldout(cct, 20) << dendl;
-  m_max_inflight_ops = cct->_conf.get_val<uint64_t>(
-    "immutable_object_cache_max_inflight_ops");
+
+  m_max_inflight_ops =
+    cct->_conf.get_val<uint64_t>("immutable_object_cache_max_inflight_ops");
+
+  m_max_cache_size =
+    m_cct->_conf.get_val<Option::size_t>("immutable_object_cache_max_size");
+
+  m_watermark =
+    m_cct->_conf.get_val<double>("immutable_object_cache_watermark");
+
+  ldout(cct, 20) << "max cache size= " << m_max_cache_size
+                 << " ,watermark= " << m_watermark
+                 << " ,max inflight ops= " << m_max_inflight_ops << dendl;
+
   m_cache_size = 0;
 }
 
@@ -108,6 +120,10 @@ void SimplePolicy::update_status(std::string file_name,
     entry->status = new_status;
     entry->size = size;
     m_cache_size += entry->size;
+
+    ldout(cct, 20) << "promoted cache size= " << size
+                   << " ,total cache size = " << m_cache_size << dendl;
+
     inflight_ops--;
     return;
   }
@@ -135,6 +151,10 @@ void SimplePolicy::update_status(std::string file_name,
     m_promoted_lru.lru_remove(entry);
     m_cache_map.erase(entry_it);
     m_cache_size -= size;
+
+    ldout(cct, 20) << "evicted cache size= " << size
+                   << " ,total cache size = " << m_cache_size << dendl;
+
     delete entry;
     return;
   }

@@ -49,7 +49,7 @@ class SimplePolicy : public Policy {
   };
 
   CephContext* cct;
-  float m_watermark;
+  double m_watermark;
   uint64_t m_max_inflight_ops;
   uint64_t m_max_cache_size;
   std::atomic<uint64_t> inflight_ops = 0;
